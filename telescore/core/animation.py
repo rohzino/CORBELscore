@@ -26,8 +26,7 @@ The browser source (outputs/overlay.py) carries a JavaScript copy of
 
 from __future__ import annotations
 
-import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from .board import Board, Element, render_template
