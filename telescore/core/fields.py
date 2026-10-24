@@ -43,12 +43,21 @@ class Field:
 
     type = "field"
 
-    def __init__(self, key: str, label: str = "", **_: Any) -> None:
+    def __init__(self, key: str, label: str = "", source: str = "", rules: str = "", override: str = "",
+                 override_on: bool = False, **_: Any) -> None:
         if not valid_key(key):
             raise ValueError(f"{key!r} is not a valid field key. Use lower-case words joined by dots, "
                              "for example home.score.")
         self.key = key
         self.label = label or key
+        # The value pipeline (see core.logic), shared by every output:
+        #   source  a live-data key (e.g. Sportzcast HomeScore) that replaces the field's own value
+        #   rules   value replacements, "0:00=FINAL|2:00=Two-minute warning"
+        #   override, override_on   fixed text that replaces everything while on
+        self.source = str(source or "")
+        self.rules = str(rules or "")
+        self.override = str(override or "")
+        self.override_on = bool(override_on)
 
     # Subclasses override -------------------------------------------------
     def display(self, t: Optional[float] = None) -> str:
@@ -73,7 +82,13 @@ class Field:
         raise NotImplementedError
 
     def to_dict(self, t: Optional[float] = None) -> dict:
-        return {"key": self.key, "type": self.type, "label": self.label}
+        d = {"key": self.key, "type": self.type, "label": self.label}
+        for k in ("source", "rules", "override"):
+            if getattr(self, k):
+                d[k] = getattr(self, k)
+        if self.override_on:
+            d["override_on"] = True
+        return d
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<{type(self).__name__} {self.key}={self.display()!r}>"

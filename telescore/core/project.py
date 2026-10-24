@@ -18,9 +18,12 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from .animation import Animation
 from .board import Board, new_id
 from .engine import Engine
 from .fields import field_from_dict
+from .logic import Condition
+from .sportzcast import SourceSettings
 
 __all__ = ["Project", "Panel", "Button", "OutputSettings", "ProjectError", "FORMAT", "VERSION",
            "atomic_write_text", "current_user"]
@@ -72,6 +75,16 @@ def atomic_write_text(path: str, text: str, encoding: str = "utf-8", retries: in
             os.remove(tmp)
         except OSError:
             pass
+
+
+def _load(cls, items, what: str) -> list:
+    out = []
+    for d in items or []:
+        try:
+            out.append(cls.from_dict(d))
+        except (TypeError, ValueError) as e:
+            raise ProjectError(f"A {what} could not be read: {e}") from None
+    return out
 
 
 @dataclass
@@ -153,6 +166,8 @@ class Project:
     boards: List[Board] = field(default_factory=list)
     panels: List[Panel] = field(default_factory=list)
     outputs: OutputSettings = field(default_factory=OutputSettings)
+    animations: List[Animation] = field(default_factory=list)     # the project's own animation recipes
+    source: SourceSettings = field(default_factory=SourceSettings)  # live data (Sportzcast)
     sport: str = "generic"
     created: str = field(default_factory=lambda: _dt.datetime.now().isoformat(timespec="seconds"))
     path: str = ""                         # not saved
@@ -177,6 +192,9 @@ class Project:
             "boards": [b.to_dict() for b in self.boards],
             "panels": [p.to_dict() for p in self.panels],
             "outputs": self.outputs.to_dict(),
+            "conditions": [c.to_dict() for c in self.engine.logic.conditions],
+            "animations": [a.to_dict() for a in self.animations],
+            "source": self.source.to_dict(),
         }
 
     @classmethod
@@ -192,16 +210,20 @@ class Project:
                 fields.append(field_from_dict(fd))
             except (TypeError, ValueError) as e:
                 raise ProjectError(f"Field {fd.get('key', '?')!r} could not be read: {e}") from None
-        return cls(
+        p = cls(
             name=str(d.get("name", "Untitled")),
             author=str(d.get("author", "")),
             engine=Engine(fields),
             boards=[Board.from_dict(b) for b in d.get("boards", [])],
             panels=[Panel.from_dict(p) for p in d.get("panels", [])],
             outputs=OutputSettings.from_dict(d.get("outputs")),
+            animations=_load(Animation, d.get("animations"), "animation"),
+            source=SourceSettings.from_dict(d.get("source")),
             sport=str(d.get("sport", "generic")),
             created=str(d.get("created", "")),
         )
+        p.engine.set_conditions(_load(Condition, d.get("conditions"), "condition"))
+        return p
 
     # ----- files -------------------------------------------------------------
     def save(self, path: Optional[str] = None) -> str:

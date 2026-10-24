@@ -101,6 +101,11 @@ class Element:
     # Image
     src: str = ""                      # file path, or a template like "{home.logo}"
     contain: bool = True               # keep aspect ratio inside the box
+    # Logic and motion (see core.logic and core.animation)
+    rules: str = ""                    # this element's own rules, "0:00=FINAL|NULL=—"
+    anim_in: str = ""                  # animation when it appears
+    anim_out: str = ""                 # animation when it disappears
+    anim_change: str = ""              # animation when its text or picture changes
 
     def copy(self, new_ids: bool = True) -> "Element":
         e = copy.deepcopy(self)

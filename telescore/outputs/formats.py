@@ -165,7 +165,7 @@ def state_json(snap: Snapshot, indent: Optional[int] = None) -> str:
     for k, v in snap.raw.items():
         raw[k] = v if isinstance(v, (int, float, str, bool)) or v is None else str(v)
     return json.dumps({"version": 2, "seq": snap.seq, "updated": _stamp(snap), "values": snap.values,
-                       "raw": raw, "types": snap.types, "labels": snap.labels},
+                       "raw": raw, "types": snap.types, "labels": snap.labels, "fx": snap.fx},
                       ensure_ascii=False, indent=indent)
 
 

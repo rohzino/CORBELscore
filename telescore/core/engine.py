@@ -18,9 +18,10 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 from .clock import now
 from .fields import (ChoiceField, ClockField, CounterField, Field, ImageField, PenaltyField,
                      TextField, ToggleField)
-from .timefmt import parse_time
+from .logic import Condition, Logic, apply_rules
+from .timefmt import TimeParseError, parse_time
 
-__all__ = ["Engine", "ActionError", "Snapshot", "ACTIONS"]
+__all__ = ["Engine", "ActionError", "Snapshot", "ACTIONS", "FX_KEY", "BASE_KEY"]
 
 Listener = Callable[["Snapshot", set], None]
 
@@ -40,15 +41,21 @@ class Snapshot:
     ``labels``  ``{key: label}`` for top-level fields
     """
 
-    __slots__ = ("values", "raw", "types", "labels", "seq", "wall")
+    __slots__ = ("values", "raw", "types", "labels", "seq", "wall", "fx", "base", "live")
 
-    def __init__(self, values, raw, types, labels, seq, wall):
+    def __init__(self, values, raw, types, labels, seq, wall, fx=None, base=None, live=None):
         self.values: Dict[str, str] = values
         self.raw: Dict[str, Any] = raw
         self.types: Dict[str, str] = types
         self.labels: Dict[str, str] = labels
         self.seq: int = seq
         self.wall: float = wall
+        # Board element effects from conditions: {element id: {visible, color, fill, font, src, rule, anim}}
+        self.fx: Dict[str, Dict[str, Any]] = fx or {}
+        # Each top-level field's value before override and rules (what the field itself holds)
+        self.base: Dict[str, str] = base or {}
+        # Keys whose value currently comes from a live source
+        self.live: set = live or set()
 
     def get(self, key: str, default: str = "") -> str:
         return self.values.get(key, default)
@@ -76,6 +83,26 @@ ACTIONS = {
 }
 
 _UNDO_LIMIT = 200
+FX_KEY = "#fx"        # in a change set: board element effects changed
+BASE_KEY = "#live"    # in a change set: which fields follow a live source changed
+
+
+def _raw_from_text(f: Field, text: str) -> Any:
+    """Machine value for a field fed from live text."""
+    s = (text or "").strip()
+    if isinstance(f, CounterField):
+        try:
+            return int(s)
+        except ValueError:
+            return s
+    if isinstance(f, ClockField):
+        try:
+            return parse_time(s)
+        except TimeParseError:
+            return s
+    if isinstance(f, ToggleField):
+        return s not in ("", "0", "false", "False", "N", "n")
+    return text
 
 
 class Engine:
@@ -93,6 +120,11 @@ class Engine:
         self._seq = 0
         # Master clock states at the last settle: key -> (running, value_ms, t)
         self._marks: Dict[str, Tuple[bool, int, float]] = {}
+        self.logic = Logic()
+        self.sources: Dict[str, str] = {}          # live data: source key -> text
+        self._feeds: "queue.Queue[Dict[str, str]]" = queue.Queue()
+        self.last_feed: float = 0.0                # monotonic time of the last live packet
+        self.logic_errors: List[str] = []
         self.publish(force=True)
 
     # ----- fields ----------------------------------------------------------
@@ -146,6 +178,19 @@ class Engine:
         f.key = new
         self._fields = OrderedDict(items)
         self._structure_changed()
+
+    # ----- live data and conditions ------------------------------------------
+    def feed(self, values: Dict[str, Any]) -> None:
+        """Live data from a source thread (Sportzcast, ...). Any thread."""
+        self._feeds.put({str(k): ("" if v is None else str(v)) for k, v in values.items()})
+
+    def clear_sources(self) -> None:
+        self.sources = {}
+
+    def set_conditions(self, conditions: List[Condition]) -> None:
+        self.logic.set_conditions(conditions)
+        if getattr(self, "_snapshot", None) is not None:
+            self.publish(force=True)
 
     # ----- listeners -------------------------------------------------------
     def on_change(self, fn: Listener) -> None:
@@ -368,6 +413,22 @@ class Engine:
         second from the UI thread. Returns (action, error) for queued actions."""
         t = now() if t is None else t
         results = []
+        fed = False
+        while True:
+            try:
+                self.sources.update(self._feeds.get_nowait())
+                fed = True
+            except queue.Empty:
+                break
+        if fed:
+            self.last_feed = t
+        for action in self.logic.take_pending():
+            # Condition-driven actions change state but are not undo steps.
+            try:
+                self._run(action, t, [], depth=0)
+            except (ActionError, ValueError) as e:
+                self.logic_errors.append(f"A condition could not run {action.get('do')}: {e}")
+                del self.logic_errors[:-20]
         while True:
             try:
                 action, done = self._inbox.get_nowait()
@@ -391,31 +452,75 @@ class Engine:
         return results
 
     # ----- publishing ------------------------------------------------------
+    def _source_text(self, f: Field) -> Optional[str]:
+        if f.source and f.source in self.sources:
+            return self.sources[f.source]
+        return None
+
+    def _pipeline(self, f: Field, base: str) -> str:
+        """override > rule > conditional rule > value (see core.logic)."""
+        if f.override_on:
+            return f.override
+        r = apply_rules(f.rules, base)
+        if r is not None:
+            return r
+        for cr in self.logic.conditional_rules(f.key):
+            r = apply_rules(cr, base)
+            if r is not None:
+                return r
+        return base
+
     def build_snapshot(self, t: Optional[float] = None) -> Snapshot:
         t = now() if t is None else t
         values: Dict[str, str] = {}
+        base: Dict[str, str] = {}
         raw: Dict[str, Any] = {}
         types: Dict[str, str] = {}
         labels: Dict[str, str] = {}
+        live = set()
         for k, f in self._fields.items():
-            values[k] = f.display(t)
-            for sub, text in f.extra(t).items():
+            src = self._source_text(f)
+            if src is not None:
+                live.add(k)
+                b = src
+                raw[k] = _raw_from_text(f, src)
+            else:
+                b = f.display(t)
+                raw[k] = f.raw(t)
+            base[k] = b
+            values[k] = self._pipeline(f, b)
+            extra = f.extra(t)
+            if src is not None and isinstance(f, ClockField):
+                status = self.sources.get(getattr(f, "source_status", "") or "ClockStatus")
+                if status is not None:
+                    extra = dict(extra, running="1" if status.strip().upper() == "R" else "0")
+            for sub, text in extra.items():
                 values[f"{k}.{sub}"] = text
-            raw[k] = f.raw(t)
             types[k] = f.type
             labels[k] = f.label
+        # Conditions see the published values; conditional rules they switch on
+        # change published values, which conditions may react to in turn.
+        for _ in range(3):
+            if not self.logic.evaluate(values, t):
+                break
+            for k, f in self._fields.items():
+                values[k] = self._pipeline(f, base[k])
         import time as _time
-        return Snapshot(values, raw, types, labels, self._seq, _time.time())
+        return Snapshot(values, raw, types, labels, self._seq, _time.time(), self.logic.fx_snapshot(), base, live)
 
     def publish(self, t: Optional[float] = None, force: bool = False) -> Optional[set]:
         """Rebuild the snapshot; notify listeners with the changed keys."""
         snap = self.build_snapshot(t)
         prev = self._snapshot
         if prev is None or force:
-            changed = set(snap.values)
+            changed = set(snap.values) | {FX_KEY, BASE_KEY}
         else:
             changed = {k for k, v in snap.values.items() if prev.values.get(k) != v}
             changed |= set(prev.values) - set(snap.values)
+            if snap.fx != prev.fx:
+                changed.add(FX_KEY)
+            if snap.live != prev.live:
+                changed.add(BASE_KEY)
             if snap.labels != prev.labels or snap.types != prev.types:
                 changed |= set(snap.labels)
         if not changed and prev is not None:

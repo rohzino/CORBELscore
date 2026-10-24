@@ -50,6 +50,7 @@ class ServerData:
         self.snapshot = snapshot
         self.submit = submit
         self.boards: List[dict] = []
+        self.animations: List[dict] = []
         self.assets: frozenset = frozenset()
         self.token: str = ""
 
@@ -137,7 +138,7 @@ class _Handler(BaseHTTPRequestHandler):
                 if as_json:
                     return self._json(200, board)
                 bg = (qs.get("bg") or ["transparent"])[0]
-                return self._text(200, overlay_html(board, bg), "text/html; charset=utf-8")
+                return self._text(200, overlay_html(board, bg, self.data.animations), "text/html; charset=utf-8")
             if path == "/api/fields":
                 snap = self.data.snapshot()
                 return self._json(200, [{"key": k, "type": snap.types[k], "label": snap.labels.get(k, k)}
@@ -217,7 +218,9 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             snap = self.data.snapshot()
             last = dict(snap.values)
+            last_fx = snap.fx
             self._sse("full", last)
+            self._sse("fx", last_fx)
             while not self.hub.closed:
                 newest = q.wait(15.0)
                 if newest is None:
@@ -231,6 +234,9 @@ class _Handler(BaseHTTPRequestHandler):
                 if diff:
                     self._sse("diff", diff)
                     last = dict(newest.values)
+                if newest.fx != last_fx:
+                    last_fx = newest.fx
+                    self._sse("fx", last_fx)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
         finally:
