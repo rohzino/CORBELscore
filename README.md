@@ -39,7 +39,9 @@ On Windows, double-click **`TeleScore.bat`**. The first time, it sets up a priva
 | `TeleScore.bat build` | Build `dist\TeleScore\TeleScore.exe` |
 | `TeleScore.bat update` | Reinstall the requirements |
 
-By hand, on any platform, you need Python 3.10 or newer:
+It needs 64-bit Python 3.10 or newer, the standard build from python.org. PyQt6 has no packages for 32-bit or free-threaded ("3.14t") Python, so the launcher skips those and picks another Python if you have one. If an older `.venv` was made with an unsupported Python, the launcher rebuilds it.
+
+By hand, on any platform, you need the same Python:
 
 ```
 python -m pip install -r requirements.txt

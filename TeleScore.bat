@@ -13,28 +13,26 @@ setlocal
 cd /d "%~dp0"
 title TeleScore
 
-rem ---- find Python 3.10 or newer ---------------------------------------------
+rem ---- find a Python that PyQt6 has ready-made packages for -----------------
+rem  PyQt6 ships for 64-bit, standard (not free-threaded) CPython 3.10 or newer.
+rem  Anything else makes pip try to compile Qt from source, which fails.
+set "CHECK=import sys,struct,sysconfig; sys.exit(0 if sys.version_info>=(3,10) and struct.calcsize('P')==8 and not sysconfig.get_config_var('Py_GIL_DISABLED') else 1)"
+set "PYTHON_MANAGER_AUTOMATIC_INSTALL=false"
 set "PY="
-where py >nul 2>&1
-if not errorlevel 1 (
-    py -3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
-    if not errorlevel 1 set "PY=py -3"
-)
-if not defined PY (
-    python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
-    if not errorlevel 1 set "PY=python"
-)
-if not defined PY (
-    echo.
-    echo  TeleScore needs Python 3.10 or newer.
-    echo  Install it from https://www.python.org/downloads/ and tick
-    echo  "Add python.exe to PATH" on the first screen, then run this again.
-    echo.
-    pause
-    exit /b 1
-)
+call :try py -3
+for %%V in (3.13 3.12 3.14 3.11 3.10) do if not defined PY call :try py -%%V
+for %%V in (3.13 3.12 3.14 3.11 3.10) do if not defined PY call :try py -%%V-64
+if not defined PY call :try python
+if not defined PY goto :fail_python
 
-rem ---- private environment in .venv (first run only) -------------------------
+rem ---- private environment in .venv -----------------------------------------
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "%CHECK%" >nul 2>&1
+    if errorlevel 1 (
+        echo The existing .venv uses a Python that PyQt6 does not support. Rebuilding it...
+        rmdir /s /q ".venv"
+    )
+)
 if not exist ".venv\Scripts\python.exe" (
     echo Setting up TeleScore for the first time. This takes a minute...
     %PY% -m venv .venv
@@ -49,7 +47,7 @@ fc /b "requirements.txt" ".venv\requirements.stamp" >nul 2>&1
 if errorlevel 1 (
     echo Installing PyQt6 and the other requirements...
     "%VPY%" -m pip install --disable-pip-version-check -q --upgrade pip
-    "%VPY%" -m pip install --disable-pip-version-check -r requirements.txt
+    "%VPY%" -m pip install --disable-pip-version-check --only-binary=PyQt6,PyQt6-Qt6,PyQt6-sip -r requirements.txt
     if errorlevel 1 goto :fail_pip
     copy /y "requirements.txt" ".venv\requirements.stamp" >nul
 )
@@ -118,7 +116,28 @@ exit /b 1
 
 :fail_pip
 echo.
-echo  Installing requirements failed. Check the internet connection and run
-echo  "TeleScore.bat update" to try again.
+echo  Installing requirements failed. This Python is:
+"%VPY%" -c "import platform,struct; print('   ', platform.python_implementation(), platform.python_version(), struct.calcsize('P')*8, 'bit,', platform.machine())"
+echo  Check the internet connection and run "TeleScore.bat update" to try again.
+echo  If it fails again, copy these messages to Claude.
 pause
 exit /b 1
+
+:fail_python
+echo.
+echo  TeleScore needs 64-bit Python 3.10 or newer (the standard build, not the
+echo  free-threaded "t" build). PyQt6 has no packages for anything else.
+echo.
+echo  Pythons found on this PC:
+py --list-paths 2>nul || python -c "import sys,struct; print('   ', sys.version, struct.calcsize('P')*8, 'bit')" 2>nul || echo     none
+echo.
+echo  Install "Windows installer (64-bit)" from https://www.python.org/downloads/
+echo  and tick "Add python.exe to PATH" on the first screen, then run this again.
+pause
+exit /b 1
+
+rem ---- try one Python command; keep it when it passes the check --------------
+:try
+%* -c "%CHECK%" >nul 2>&1
+if not errorlevel 1 set "PY=%*"
+exit /b 0
