@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TeleScore 2 key/value feed (fields.xml). One <field> per published value. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+  <xs:simpleType name="fieldType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="counter"/>
+      <xs:enumeration value="text"/>
+      <xs:enumeration value="toggle"/>
+      <xs:enumeration value="choice"/>
+      <xs:enumeration value="clock"/>
+      <xs:enumeration value="penalties"/>
+      <xs:enumeration value="image"/>
+      <xs:enumeration value="sub"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="key">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z0-9_]+(\.[a-z0-9_]+)*"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="fields">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="field" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:simpleContent>
+              <xs:extension base="xs:string">
+                <xs:attribute name="key" type="key" use="required"/>
+                <xs:attribute name="type" type="fieldType" use="required"/>
+                <xs:attribute name="label" type="xs:string" use="required"/>
+                <xs:attribute name="raw" type="xs:integer" use="optional"/>
+              </xs:extension>
+            </xs:simpleContent>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:integer" use="required"/>
+      <xs:attribute name="seq" type="xs:nonNegativeInteger" use="required"/>
+      <xs:attribute name="updated" type="xs:dateTime" use="required"/>
+    </xs:complexType>
+    <xs:unique name="uniqueKey">
+      <xs:selector xpath="field"/>
+      <xs:field xpath="@key"/>
+    </xs:unique>
+  </xs:element>
+</xs:schema>
