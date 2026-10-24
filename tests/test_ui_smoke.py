@@ -176,7 +176,7 @@ class UISmokeTests(unittest.TestCase):
 
     def test_builder_edit_undo_redo(self):
         win = self.make_window()
-        p = self.load(win, "General scoreboard")
+        self.load(win, "General scoreboard")
         win.tabs.setCurrentIndex(1)
         self.wait(100)
         bt = win.tabs.widget(1)
@@ -262,7 +262,7 @@ class UISmokeTests(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(folder, "vmix.xml")))
         # web server answers, and remote actions run on the GUI thread
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/action?do=add&field=away.score&amount=5",
-                                    timeout=5) as r:
+                                    timeout=5):
             pass
         start = time.monotonic()
         result = None
