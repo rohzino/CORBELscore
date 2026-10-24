@@ -33,7 +33,8 @@ FILTER = "TeleScore projects (*.tsproj);;TeleScore 1.x projects (*.json);;All fi
 
 
 def app_data_dir() -> str:
-    d = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+    d = os.environ.get("TELESCORE_DATA_DIR") or \
+        QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
     if not d:
         d = os.path.join(os.path.expanduser("~"), ".telescore")
     os.makedirs(d, exist_ok=True)
@@ -110,9 +111,9 @@ class HeaderBar(QFrame):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, settings: Optional[QSettings] = None):
         super().__init__()
-        self.settings = QSettings("TeleScore", "TeleScore")
+        self.settings = settings or QSettings("TeleScore", "TeleScore")
         self.session: Optional[Session] = None
         self.ctl: Optional[OutputController] = None
         self.projectors: List[ProjectorWindow] = []
