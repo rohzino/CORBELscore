@@ -1,5 +1,5 @@
 """
-The Live data tab: connect a Sportzcast bot (or a LiveXML file) and bind its
+Setup → Live data: connect a Sportzcast bot (or a LiveXML file) and bind its
 keys to fields. A bound field shows the bot's value; rules, overrides and
 conditions still apply, and the operator can override it at any time.
 """

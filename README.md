@@ -8,19 +8,26 @@ This is a community continuation of [TeleScore](https://github.com/JumpShot-Inte
 
 ## What it does
 
-- **Operate tab.** Each field gets a card: clocks with Start/Stop, ±1 s and ±1 min, and typed times; score buttons; text, choices, on/off, penalties and pictures. Your own buttons sit beside them with their shortcuts, next to a live preview of any board. Every action can be undone.
-- **Build tab.** This is the scoreboard designer. Boards are fixed canvases (1920 × 1080 by default). Drag and resize with eight handles, and elements snap to a grid and to other elements. You can align, distribute, reorder, copy and paste, and undo or redo. Drag a field onto the board to show it. Text shrinks to fit, colours can follow fields such as `{home.color}`, and an element can be shown only while a field is on.
-- **Data tab.** Counters, text, on/off, choices, clocks, penalties and pictures. Renaming a field updates every board and button that uses it.
-- **Logic tab.** SportzSuite-style conditions: "if `home.timeouts` changes by -1, then animate the time-out graphic", or "if the clock has value 0:00, then show FINAL". Together with rules ("0:00=FINAL") and overrides, they shape the text files and XML as well as the graphics. See [docs/logic.md](docs/logic.md).
-- **Live data tab.** Sportzcast scoreboard data over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML file. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
-- **Animations.** Thirty-one built-in moves: fly, wipe, fade, slide, pop, drop, flash, pulse, shake and bump. You can also make your own: offset, scale, opacity, wipe, easing, delay and repeat. Elements animate when they appear, disappear or change, or when a condition says so. Animations show in browser sources, projector windows and the builder preview.
-- **Buttons tab.** A button runs one or more actions as one undo step, for example "Next quarter: next period, reset game clock, reset shot clock". Any button can have a keyboard shortcut.
-- **Outputs tab.**
-  - Text files: one per value, for OBS Text sources.
-  - XML for vMix, Ross XPression and Chyron.
-  - JSON.
-  - A local web server for browser sources, data feeds and remote control (Stream Deck, Bitfocus Companion, any HTTP request).
-  - PNG pictures of boards.
+TeleScore has three tabs:
+
+- **Operate.** Each field gets a card: clocks with Start/Stop, ±1 s and ±1 min, and typed times; score buttons; text, choices, on/off, penalties and pictures. Your own buttons sit beside them with their shortcuts, next to a live preview of any board. Every action can be undone.
+- **Design**, with three sections across the top:
+  - **Boards** is the scoreboard designer. Boards are fixed canvases (1920 × 1080 by default). Drag and resize with eight handles, and elements snap to a grid and to other elements. You can align, distribute, reorder, copy and paste, and undo or redo. Drag a field onto the board to show it. Text shrinks to fit, colours can follow fields such as `{home.color}`, and an element can be shown only while a field is on.
+  - **Logic** holds SportzSuite-style conditions: "if `home.timeouts` changes by -1, then animate the time-out graphic", or "if the clock has value 0:00, then show FINAL". Together with rules ("0:00=FINAL") and overrides, they shape the text files and XML as well as the graphics. See [docs/logic.md](docs/logic.md).
+  - **Animations** has thirty-one built-in moves: fly, wipe, fade, slide, pop, drop, flash, pulse, shake and bump. You can also make your own: offset, scale, opacity, wipe, easing, delay and repeat. Elements animate when they appear, disappear or change, or when a condition says so. Animations show in browser sources, projector windows and the builder preview.
+- **Setup**, with four sections down the left:
+  - **Fields**: counters, text, on/off, choices, clocks, penalties and pictures. Renaming a field updates every board and button that uses it.
+  - **Live data**: Sportzcast scoreboard data over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML file. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
+  - **Buttons**: a button runs one or more actions as one undo step, for example "Next quarter: next period, reset game clock, reset shot clock". Any button can have a keyboard shortcut.
+  - **Outputs**:
+    - Text files: one per value, for OBS Text sources.
+    - XML for vMix, Ross XPression and Chyron.
+    - JSON.
+    - A local web server for browser sources, data feeds and remote control (Stream Deck, Bitfocus Companion, any HTTP request).
+    - PNG pictures of boards.
+
+Also:
+
 - **Projector windows.** Show any board full screen on any display.
 - **Templates.** Basketball, hockey, soccer, football, volleyball, baseball, a general scoreboard and a blank project.
 - **1.x projects open directly.** They are converted, and the original file is never overwritten.
@@ -63,7 +70,7 @@ python -m telescore
 | Remote control | `http://127.0.0.1:8130/api/action?do=add&field=home.score&amount=1` | Stream Deck, Companion |
 | PNG | `<folder>/images/<board>.png` | systems that load pictures |
 
-The default folder is `Documents/TeleScore Output/<project>`. The web server listens only on this computer unless you allow the network in Outputs. On a network you should set a control token.
+The default folder is `Documents/TeleScore Output/<project>`. The web server listens only on this computer unless you allow the network in Setup → Outputs. On a network you should set a control token.
 
 ### Actions
 

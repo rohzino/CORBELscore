@@ -17,7 +17,7 @@ that data four ways, all standard library, all feeding the same field binding:
 
 Whatever arrives is flattened to ``{key: text}`` (nested keys joined with
 dots) and fed to :meth:`Engine.feed`. A field shows a live key when its
-``source`` is set to it (Data tab); rules, overrides and conditions then apply
+``source`` is set to it (Setup → Fields); rules, overrides and conditions then apply
 as usual. :func:`suggest` proposes bindings for the usual names.
 
 Sources: docs.sportzcast.net (MQTT integration, base contract, TCP legacy).

@@ -2,7 +2,7 @@
 The Operate tab: everything the scorekeeper touches during a game.
 
 Left: one card per field, grouped by the first word of its key (Away, Home,
-Clock, ...), generated from the Data tab, so a new field is operable the
+Clock, ...), generated from Setup → Fields, so a new field is operable the
 moment it exists. Right: the project's buttons (with their shortcuts) and a
 live preview of any board.
 """
@@ -457,7 +457,7 @@ class OperateTab(QWidget):
             g = f.key.split(".")[0] if "." in f.key else "game"
             groups.setdefault(g, []).append(f)
         if not groups:
-            self.cards_layout.addWidget(label("This project has no fields yet. Add them in the Data tab, or start "
+            self.cards_layout.addWidget(label("This project has no fields yet. Add them in Setup → Fields, or start "
                                               "from a template with File → New.", "body", muted=True, wrap=True))
         for g, fields in groups.items():
             title = caps(g.replace("_", " "))
@@ -514,7 +514,7 @@ class OperateTab(QWidget):
                 r, c = divmod(i, cols)
                 grid.addWidget(PanelButton(b, lambda b=b: self.session.act(b.action)), r, c)
             if not p.buttons:
-                grid.addWidget(label("No buttons on this panel. Add them in the Buttons tab.", "small", muted=True),
+                grid.addWidget(label("No buttons on this panel. Add them in Setup → Buttons.", "small", muted=True),
                                0, 0)
             grid.setRowStretch(grid.rowCount(), 1)
             scroll = QScrollArea()

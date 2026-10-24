@@ -1,5 +1,5 @@
 """
-The Build tab: a scoreboard designer.
+Design → Boards: a scoreboard designer.
 
 1.x placed widgets on a resizable form and stored positions as ratios of the
 window, so layouts drifted when the window changed size. Here a board is a
@@ -33,7 +33,7 @@ from ..core.board import Board, Element, new_id, resolve_color
 from . import theme
 from .render import ImageCache, draw_checker, paint_element, qcolor
 from .session import Session
-from .widgets import ColorEdit, ConfirmButton, button, caps, label, panel
+from .widgets import ColorEdit, ConfirmButton, button, caps, label, make_narrow, panel
 
 MIME = "application/x-telescore-elements"
 FIELD_MIME = "application/x-telescore-field"
@@ -289,7 +289,7 @@ class Canvas(QGraphicsView):
         self._pending_resize = None
         self.guides: List[tuple] = []           # ("v"|"h", position)
         self._move_start: Dict[str, QPointF] = {}
-        self._fit_pending = True
+        self._fit_pending = True      # keep fitting the board to the window until the user zooms
         self.scene().selectionChanged.connect(self._sel_changed)
 
     def scale_factor(self) -> float:
@@ -374,20 +374,30 @@ class Canvas(QGraphicsView):
 
     # ----- zoom -------------------------------------------------------------
     def fit(self) -> None:
-        if self.board is None or self.viewport().width() < 10:
+        """Fit the board in the window, and keep it fitted as the window
+        changes size until the user zooms. A hidden tab's view has no real
+        size yet, so fitting waits until it is shown."""
+        self._fit_pending = True
+        if self.board is None or not self.isVisible() or self.viewport().width() < 50:
             return
-        self._fit_pending = False
         r = QRectF(0, 0, self.board.width, self.board.height).adjusted(-30, -30, 30, 30)
         self.fitInView(r, Qt.AspectRatioMode.KeepAspectRatio)
 
     def actual_size(self) -> None:
+        self._fit_pending = False
         self.resetTransform()
+
+    def showEvent(self, ev):
+        super().showEvent(ev)
+        if self._fit_pending:
+            QTimer.singleShot(0, self.fit)
 
     def wheelEvent(self, ev):
         if ev.modifiers() & Qt.KeyboardModifier.ControlModifier:
             f = 1.15 if ev.angleDelta().y() > 0 else 1 / 1.15
             s = self.scale_factor() * f
             if 0.05 <= s <= 8:
+                self._fit_pending = False
                 self.scale(f, f)
             ev.accept()
         else:
@@ -825,7 +835,7 @@ class Inspector(QWidget):
         f = QFormLayout()
         self.m_rules = QLineEdit()
         self.m_rules.setPlaceholderText("0:00=FINAL|NULL=—  (this graphic only)")
-        self.m_rules.setToolTip("Replace shown values on this element only. Field rules (Data tab) also reach "
+        self.m_rules.setToolTip("Replace shown values on this element only. Field rules (Setup → Fields) also reach "
                                 ".txt and .xml; these do not.")
         self.m_rules.editingFinished.connect(lambda: self._set("rules", self.m_rules.text().strip()))
         f.addRow(caps("Rules"), self.m_rules)
@@ -844,7 +854,7 @@ class Inspector(QWidget):
         ml.addLayout(f)
         ml.addWidget(label("Appears and Disappears play when Show when, or a condition in Logic, shows or hides it. "
                            "On change plays when its text or picture changes.", "small", muted=True, wrap=True))
-        ml.addWidget(button("Animations…", "", self.open_library.emit, tip="Make your own animations"))
+        ml.addWidget(button("Edit animations", "", self.open_library.emit, tip="Design → Animations: make your own"))
         root.addWidget(self.motion_box)
         root.addStretch(1)
         self._lib = library()
@@ -967,6 +977,8 @@ class Inspector(QWidget):
 # ----- the tab ------------------------------------------------------------------------
 
 class BuildTab(QWidget):
+    library_requested = pyqtSignal()        # Design → Animations
+
     def __init__(self, session: Session, parent=None):
         super().__init__(parent)
         self.session = session
@@ -1079,15 +1091,17 @@ class BuildTab(QWidget):
         self.inspector.browse_image.connect(self._browse_image)
         self.inspector.try_anim.connect(self._try_anim)
         self.inspector.open_library.connect(self._open_library)
+        make_narrow(self.inspector)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setWidget(self.inspector)
-        scroll.setMinimumWidth(300)
+        scroll.setMinimumWidth(320)
         split.addWidget(scroll)
         split.setStretchFactor(0, 0)
         split.setStretchFactor(1, 1)
         split.setStretchFactor(2, 0)
-        split.setSizes([240, 900, 330])
+        split.setSizes([220, 900, 360])
         root.addWidget(split, 1)
 
         # Shortcuts (only while this tab has focus) ----------------------------------
@@ -1331,9 +1345,7 @@ class BuildTab(QWidget):
             self.canvas.play(e.id, a)
 
     def _open_library(self):
-        from .animations_dialog import AnimationsDialog
-        dlg = AnimationsDialog(self.session, self)
-        dlg.exec()
+        self.library_requested.emit()
 
     def _animations_changed(self):
         self.inspector.set_animations(self._lib())

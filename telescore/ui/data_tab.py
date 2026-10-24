@@ -1,5 +1,5 @@
 """
-The Data tab: the fields that make up a scoreboard.
+Setup → Fields: the fields that make up a scoreboard.
 
 Add, rename, reorder and configure fields. Renaming a field updates every
 board, button and penalty that refers to it, and the tab lists where a field
@@ -249,7 +249,7 @@ class DataTab(QWidget):
             src.addItem(k)
         src.setCurrentText(f.source)
         src.lineEdit().setPlaceholderText("not bound to live data")
-        src.setToolTip("A key from the Live data tab, e.g. HomeScore. The field then shows the bot's value.")
+        src.setToolTip("A key from Setup → Live data, e.g. HomeScore. The field then shows the bot's value.")
 
         def set_src(*_):
             f.source = src.currentText().strip()

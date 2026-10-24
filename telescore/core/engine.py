@@ -136,7 +136,7 @@ class Engine:
         try:
             return self._fields[key]
         except KeyError:
-            raise ActionError(f"There is no field called {key!r}. Check the Data tab for its name.") from None
+            raise ActionError(f"There is no field called {key!r}. Check Setup → Fields for its name.") from None
 
     def add_field(self, f: Field, index: Optional[int] = None) -> None:
         if f.key in self._fields:

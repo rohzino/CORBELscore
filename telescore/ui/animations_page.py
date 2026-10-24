@@ -1,4 +1,4 @@
-"""Make your own animations: start from a built-in, change the move, preview it."""
+"""Design → Animations: start from a built-in, change the move, preview it."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import copy
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import (QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLineEdit, QListWidget,
-                             QListWidgetItem, QSpinBox, QVBoxLayout)
+from PyQt6.QtWidgets import (QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLineEdit, QListWidget,
+                             QListWidgetItem, QSpinBox, QVBoxLayout, QWidget)
 
 from ..core.animation import EASINGS, Animation, library
 from ..core.board import Board, Element
@@ -20,16 +20,14 @@ WIPES = [("", "None"), ("left", "From/to the left"), ("right", "From/to the righ
          ("down", "Downward")]
 
 
-class AnimationsDialog(QDialog):
+class AnimationsPage(QWidget):
     def __init__(self, session: Session, parent=None):
         super().__init__(parent)
         self.session = session
-        self.setWindowTitle("Animations")
-        self.resize(900, 560)
         self._cur: Optional[Animation] = None
         self._loading = False
         root = QHBoxLayout(self)
-        root.setContentsMargins(16, 16, 16, 16)
+        root.setContentsMargins(16, 12, 16, 12)
         root.setSpacing(14)
 
         left = QVBoxLayout()
@@ -119,8 +117,6 @@ class AnimationsDialog(QDialog):
         self.view.setMinimumHeight(200)
         pl.addWidget(self.view, 1)
         right.addWidget(pv, 1)
-        close = button("Done", "", self.accept)
-        right.addWidget(close, 0, Qt.AlignmentFlag.AlignRight)
         root.addLayout(right, 3)
         self._fill()
 
@@ -281,3 +277,8 @@ class AnimationsDialog(QDialog):
         self.view.setBoard(self.board, self.custom)
         self.view.setValues({}, None, {})
         QTimer.singleShot(0, lambda: self.view.play("sample", self._cur.name) if self._cur else None)
+
+
+    def show_animation(self, name: str) -> None:
+        """Select one animation by name (used when the builder asks for it)."""
+        self._fill(name)

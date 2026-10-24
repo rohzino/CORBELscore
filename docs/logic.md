@@ -8,13 +8,13 @@ Every field's published value is worked out in this order. The first step that a
 
 | Step | Where you set it | Example |
 |---|---|---|
-| 1. **Override** | Data tab → Override, or click the OVERRIDE chip on an Operate card to turn it off | `HALFTIME` |
-| 2. **Live key** | Data tab → Live key, or Live data → bind | the bot's `HomeScore` |
-| 3. **Rules** | Data tab → Rules | `0:00=FINAL\|2:00=Two-minute warning` |
-| 4. **Conditional rules** | Logic tab, a condition whose action is "Conditional rule" | `1=Joe\|2=John` while `half` is `T` |
-| 5. The field's own value | Operate tab, buttons, remote control | `3` |
+| 1. **Override** | Setup → Fields → Override, or click the OVERRIDE chip on an Operate card to turn it off | `HALFTIME` |
+| 2. **Live key** | Setup → Fields → Live key, or Setup → Live data → bind | the bot's `HomeScore` |
+| 3. **Rules** | Setup → Fields → Rules | `0:00=FINAL\|2:00=Two-minute warning` |
+| 4. **Conditional rules** | Design → Logic, a condition whose action is "Conditional rule" | `1=Joe\|2=John` while `half` is `T` |
+| 5. The field's own value | Operate, buttons, remote control | `3` |
 
-All outputs get the result: text files, the XML profiles, `state.json`, browser sources, projector windows and PNGs. The Data tab's **Now** column shows the published result, and `state.json` carries both.
+All outputs get the result: text files, the XML profiles, `state.json`, browser sources, projector windows and PNGs. The **Now** column in Setup → Fields shows the published result, and `state.json` carries both.
 
 A rule beats a conditional rule, as it does in SportzSuite. An override beats everything; SportzSuite's docs don't say how its overrides rank, so this ordering is TeleScore's choice.
 
@@ -35,7 +35,7 @@ TeleScore adds a few things SportzSuite doesn't document:
 | `1={value}st` | `{value}` puts the original value back in |
 | `a\=b=c\|d` | `\=` and `\|` are a literal `=` and `\|` |
 
-Board elements can have their own rules too (Build → inspector → Rules and motion). Element rules change only that graphic, never the files.
+Board elements can have their own rules too (Design → Boards → inspector → Rules and motion). Element rules change only that graphic, never the files.
 
 ## Conditions
 

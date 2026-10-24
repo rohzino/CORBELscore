@@ -98,6 +98,55 @@ class UISmokeTests(unittest.TestCase):
             self.wait(30)
             self.shot(win, f"00 start page {name}")
 
+    def test_screenshot_regressions(self):
+        """Faults seen on a real Windows run (2.0.0a2): each must stay fixed."""
+        from PyQt6.QtGui import QColor
+        from PyQt6.QtWidgets import QPushButton
+        from telescore.ui import theme
+        win = self.make_window()
+        win.resize(1432, 892)
+        self.wait(50)
+        accent = QColor(theme.CURRENT["accent"])
+
+        def fill_of(btn):
+            img = btn.grab().toImage()
+            return QColor(img.pixel(img.width() // 2, 3))
+
+        def near(a, b, tol=40):
+            return abs(a.red() - b.red()) + abs(a.green() - b.green()) + abs(a.blue() - b.blue()) <= tol
+
+        # 1. A green (accent) button inside a panel keeps its green fill.
+        start = next(b for b in win.findChildren(QPushButton)
+                     if b.text() == "Start" and b.property("role") == "accent")
+        self.assertTrue(near(fill_of(start), accent), fill_of(start).name())
+
+        # 2. A disabled green button reads as disabled, not as dark text on nothing.
+        self.load(win, "Blank project")
+        live = win.goto("live")
+        self.wait(50)
+        connect = next(b for b in live.findChildren(QPushButton) if b.text() == "Connect")
+        connect.setEnabled(False)
+        self.wait(20)
+        self.assertFalse(near(fill_of(connect), accent))
+
+        # 3. An unsaved project does not claim to be saved.
+        self.assertEqual(win.header.saved.text(), "Not saved yet")
+
+        # 4. The board is fitted to the canvas when Design opens, not drawn thumbnail-sized.
+        bt = win.goto("boards")
+        self.wait(120)
+        vp = bt.canvas.viewport()
+        shown_w = bt.board.width * bt.canvas.scale_factor()
+        self.assertGreater(shown_w, vp.width() * 0.6, (shown_w, vp.width()))
+        win.resize(1700, 1000)
+        self.wait(120)
+        self.assertGreater(bt.board.width * bt.canvas.scale_factor(), bt.canvas.viewport().width() * 0.6)
+
+        # 5. The inspector fits its column: no sideways scrolling, nothing clipped.
+        scroll = bt.inspector.parentWidget().parentWidget()
+        self.assertLessEqual(bt.inspector.minimumSizeHint().width(), scroll.viewport().width() + 1)
+        self.shot(win, "regressions design")
+
     def test_every_template_every_tab(self):
         from telescore.core.presets import PRESETS
         win = self.make_window()
@@ -105,11 +154,16 @@ class UISmokeTests(unittest.TestCase):
             with self.subTest(preset=preset):
                 self.load(win, preset)
                 self.assertIsNotNone(win.tabs)
-                for i in range(win.tabs.count()):
-                    win.tabs.setCurrentIndex(i)
+                self.assertEqual([win.tabs.tabText(i) for i in range(win.tabs.count())],
+                                 ["Operate", "Design", "Setup"])
+                for i, key in enumerate(("operate", "boards", "logic", "animations", "fields", "live",
+                                         "buttons", "outputs")):
+                    page = win.goto(key)
+                    self.assertIsNotNone(page)
                     self.wait(40)
+                    self.assertTrue(page.isVisible(), key)
                     if preset in ("Basketball", "Hockey", "Blank project"):
-                        self.shot(win, f"{preset} {i} {win.tabs.tabText(i)}")
+                        self.shot(win, f"{preset} {i} {key}")
                 win.session.set_dirty(False)
 
     def test_operate_buttons_and_clock(self):
@@ -177,9 +231,8 @@ class UISmokeTests(unittest.TestCase):
     def test_builder_edit_undo_redo(self):
         win = self.make_window()
         self.load(win, "General scoreboard")
-        win.tabs.setCurrentIndex(1)
+        bt = win.goto("boards")
         self.wait(100)
-        bt = win.tabs.widget(1)
         board = bt.board
         n = len(board.elements)
         bt.add_element("text")
@@ -234,15 +287,13 @@ class UISmokeTests(unittest.TestCase):
         self.wait(50)
         from telescore.ui.operate import CounterCard
         self.assertTrue(any(isinstance(c, CounterCard) and c.f.key == "home.hits" for c in win.operate.cards))
-        win.tabs.setCurrentIndex(2)
+        win.goto("fields")
         self.wait(50)
         n = win.session.rename_key_everywhere("home.penalties", "home.pen")
         self.assertGreater(n, 0)
         self.wait(50)
-        win.tabs.setCurrentIndex(5)
+        bt = win.goto("buttons")
         self.wait(50)
-        bt = win.tabs.widget(5)
-        self.assertEqual(win.tabs.tabText(5), "Buttons")
         bt.add_button()
         self.wait(30)
         self.assertEqual(p.panels[0].buttons[-1].label, "New button")
@@ -332,9 +383,7 @@ class UISmokeTests(unittest.TestCase):
         from telescore.core.logic import Condition
         win = self.make_window()
         p = self.load(win, "Hockey")
-        lt = win.tabs.widget(3)
-        self.assertEqual(win.tabs.tabText(3), "Logic")
-        win.tabs.setCurrentIndex(3)
+        lt = win.goto("logic")
         self.wait(50)
         lt.add()
         self.wait(30)
@@ -368,16 +417,14 @@ class UISmokeTests(unittest.TestCase):
         path = os.path.join(self.tmp, "live.xml")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write("<info><Hscore>42</Hscore><Vscore>30</Vscore><period>2</period></info>")
-        tab = win.tabs.widget(4)
-        self.assertEqual(win.tabs.tabText(4), "Live data")
-        win.tabs.setCurrentIndex(4)
+        tab = win.goto("live")
         tab.kind.setCurrentIndex(tab.kind.findData("livexml"))
         tab._kind_changed()
         tab.path.setText(path)
         tab.poll.setValue(50)
         tab.apply()
         end = time.monotonic() + 5
-        while time.monotonic() < end and "Hscore" not in win.live.keys():
+        while time.monotonic() < end and "Hscore" not in win.live.keys():  # noqa: SIM118
             self.wait(50)
         self.assertEqual(win.live.source.status.state, "live")
         from PyQt6.QtWidgets import QMessageBox
@@ -396,22 +443,23 @@ class UISmokeTests(unittest.TestCase):
         card = next(c for c in win.operate.cards if isinstance(c, CounterCard) and c.f.key == "home.score")
         self.assertEqual(card.flag.text(), "LIVE")
         self.shot(win, "operate with live data")
-        win.tabs.setCurrentIndex(4)
+        win.goto("live")
         self.wait(100)
         self.shot(win, "live data tab")
         self.assertIn(win.header.lights["live"]._state, ("live", "ok"))
         tab.disconnect()
         self.wait(100)
 
-    def test_animations_dialog_and_inspector(self):
-        from telescore.ui.animations_dialog import AnimationsDialog
+    def test_animations_page_and_inspector(self):
         win = self.make_window()
         p = self.load(win, "General scoreboard")
-        win.tabs.setCurrentIndex(1)
-        bt = win.tabs.widget(1)
+        bt = win.goto("boards")
         self.wait(50)
-        dlg = AnimationsDialog(win.session, win)
-        dlg.show()
+        bt.inspector.open_library.emit()          # "Edit animations" goes to Design → Animations
+        self.wait(30)
+        self.assertEqual(win.design.current(), "animations")
+        dlg = win.pages["animations"]
+        self.assertTrue(dlg.isVisible())
         dlg.new()
         self.assertEqual(len(p.animations), 1)
         dlg.sp_x.setValue(-300)
@@ -421,9 +469,10 @@ class UISmokeTests(unittest.TestCase):
         dlg.copy_current()
         self.assertEqual(len(p.animations), 2)
         self.wait(200)
-        self.shot(dlg, "animations dialog")
+        self.shot(win, "animations page")
         dlg.delete()
-        dlg.close()
+        win.goto("boards")
+        self.wait(30)
         el = bt.board.elements[3]
         bt.canvas.select_ids([el.id])
         self.wait(30)

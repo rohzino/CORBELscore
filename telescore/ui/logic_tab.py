@@ -1,5 +1,5 @@
 """
-The Logic tab: conditions, the SportzSuite way.
+Design → Logic: conditions, the SportzSuite way.
 
 "If <field> <has value / changes by / ...> <value> then <element or field>
 <show / hide / animate / conditional rule / set / ...>". Element actions

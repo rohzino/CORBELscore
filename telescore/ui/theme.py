@@ -127,6 +127,50 @@ def _icons(p: Palette) -> Dict[str, str]:
     return out
 
 
+def _buttons(c) -> str:
+    rules = [
+        ("QPushButton, QToolButton",
+         f"background: {c['panel']}; color: {c['ink']}; border: 1px solid {c['rule-strong']}; border-radius: 4px;"
+         " padding: 5px 10px; min-height: 22px; font-weight: 600;"),
+        ("QPushButton:hover, QToolButton:hover", f"border-color: {c['accent-text']};"),
+        ("QPushButton:pressed, QToolButton:pressed", f"background: {c['sel']};"),
+        ("QPushButton:checked, QToolButton:checked",
+         f"background: {c['accent']}; color: {c['accent-ink']}; border-color: {c['accent']};"),
+        ('QPushButton[role="accent"]',
+         f"background: {c['accent']}; color: {c['accent-ink']}; border-color: {c['accent']}; font-weight: 800;"),
+        ('QPushButton[role="accent"]:hover', f"border-color: {c['ink']};"),
+        ('QPushButton[role="alert"]', f"color: {c['alert-text']}; border-color: {c['alert']};"),
+        ('QPushButton[role="alert"]:hover', f"background: {c['alert-soft']};"),
+        ('QPushButton[role="danger"]',
+         f"background: {c['alert']}; color: {c['alert-ink']}; border-color: {c['alert']}; font-weight: 800;"),
+        ('QPushButton[role="user"]', f"color: {c['user-text']}; border-color: {c['user']};"),
+        ('QPushButton[role="hi"]', f"color: {c['ink']}; border-color: {c['hi']};"),
+        ('QPushButton[role="ghost"]', f"background: transparent; border-color: transparent; color: {c['accent-text']};"),
+        ('QPushButton[role="ghost"]:hover', f"border-color: {c['rule-strong']};"),
+        # Disabled comes after the roles so a disabled green button reads as disabled, not as blank green.
+        ("QPushButton:disabled, QToolButton:disabled",
+         f"color: {c['muted']}; border-color: {c['rule']}; background: {c['field']};"),
+        (", ".join(f'QPushButton[role="{r}"]:disabled' for r in ("accent", "danger", "alert", "user", "hi", "ghost")),
+         f"color: {c['muted']}; border-color: {c['rule']}; background: {c['field']}; font-weight: 600;"),
+        ("QPushButton:focus, QToolButton:focus", f"outline: none; border: 2px solid {c['hi']}; padding: 4px 9px;"),
+        ('QPushButton[big="true"]', "font-size: 16px; font-weight: 800; min-height: 40px; padding: 6px 14px;"),
+        ('QPushButton[seg="true"]', "border-radius: 4px; padding: 4px 10px;"),
+        # Section switches (Design: Boards / Logic / Animations): quiet words, hi underline when current.
+        ('QPushButton[nav="true"]',
+         f"background: transparent; color: {c['muted']}; border: 0; border-bottom: 3px solid transparent;"
+         " border-radius: 0; padding: 6px 12px 4px 12px; font-weight: 800;"),
+        ('QPushButton[nav="true"]:hover', f"color: {c['ink']};"),
+        ('QPushButton[nav="true"]:checked',
+         f"background: transparent; color: {c['accent-text']}; border-bottom: 3px solid {c['hi']};"),
+        ('QPushButton[nav="true"]:focus', f"border: 0; border-bottom: 3px solid {c['hi']}; padding: 6px 12px 4px 12px;"),
+    ]
+    out = []
+    for sel, body in rules:
+        scoped = ", ".join(f'QFrame[panel="true"] {part.strip()}' for part in sel.split(","))
+        out.append(f"{sel}, {scoped} {{ {body} }}")
+    return "\n".join(out)
+
+
 def qss(p: Palette) -> str:
     c = p.c
     i = _icons(p)
@@ -156,27 +200,10 @@ QLabel[muted="true"] {{ color: {c['muted']}; }}
 QLabel[accenttext="true"] {{ color: {c['accent-text']}; }}
 QLabel[alerttext="true"] {{ color: {c['alert-text']}; }}
 
-/* Buttons: words, panel fill, hairline; hover turns the border accent */
-QPushButton, QToolButton {{
-    background: {c['panel']}; color: {c['ink']}; border: 1px solid {c['rule-strong']}; border-radius: 4px;
-    padding: 5px 10px; min-height: 22px; font-weight: 600;
-}}
-QPushButton:hover, QToolButton:hover {{ border-color: {c['accent-text']}; }}
-QPushButton:pressed, QToolButton:pressed {{ background: {c['sel']}; }}
-QPushButton:checked, QToolButton:checked {{ background: {c['accent']}; color: {c['accent-ink']}; border-color: {c['accent']}; }}
-QPushButton:disabled, QToolButton:disabled {{ color: {c['muted']}; border-color: {c['rule']}; background: {c['field']}; }}
-QPushButton:focus, QToolButton:focus {{ outline: none; border: 2px solid {c['hi']}; padding: 4px 9px; }}
-QPushButton[role="accent"] {{ background: {c['accent']}; color: {c['accent-ink']}; border-color: {c['accent']}; font-weight: 800; }}
-QPushButton[role="accent"]:hover {{ border-color: {c['ink']}; }}
-QPushButton[role="alert"] {{ color: {c['alert-text']}; border-color: {c['alert']}; }}
-QPushButton[role="alert"]:hover {{ background: {c['alert-soft']}; }}
-QPushButton[role="danger"] {{ background: {c['alert']}; color: {c['alert-ink']}; border-color: {c['alert']}; font-weight: 800; }}
-QPushButton[role="user"] {{ color: {c['user-text']}; border-color: {c['user']}; }}
-QPushButton[role="hi"] {{ color: {c['ink']}; border-color: {c['hi']}; }}
-QPushButton[role="ghost"] {{ background: transparent; border-color: transparent; color: {c['accent-text']}; }}
-QPushButton[role="ghost"]:hover {{ border-color: {c['rule-strong']}; }}
-QPushButton[big="true"] {{ font-size: 16px; font-weight: 800; min-height: 40px; padding: 6px 14px; }}
-QPushButton[seg="true"] {{ border-radius: 4px; padding: 4px 10px; }}
+/* Buttons: words, panel fill, hairline; hover turns the border accent.
+   Every button rule is also written scoped to panels: the panel rule above
+   makes children transparent and would otherwise outrank a role's fill. */
+{_buttons(c)}
 QFrame[headbar="true"] QPushButton {{
     background: {c['menu-fill']}; color: {c['head-ink']}; border: 1px solid {c['menu-border']};
 }}
@@ -215,6 +242,16 @@ QTabBar::tab {{
 }}
 QTabBar::tab:selected {{ color: {c['accent-text']}; border-bottom: 4px solid {c['hi']}; }}
 QTabBar::tab:hover:!selected {{ color: {c['ink']}; }}
+
+/* Workspace sections: a quiet bar of switches (Design) or a list down the left (Setup) */
+QFrame[sectionbar="true"] {{ background: {c['bg']}; border: 0; border-bottom: 1px solid {c['rule']}; }}
+QFrame[vrule="true"] {{ background: {c['rule']}; border: 0; }}
+QListWidget[sectionlist="true"] {{ background: {c['panel']}; border: 0; border-radius: 0; padding-top: 10px; }}
+QListWidget[sectionlist="true"]::item {{ padding: 9px 16px; color: {c['muted']}; border: 0; border-left: 3px solid transparent; }}
+QListWidget[sectionlist="true"]::item:hover {{ color: {c['ink']}; background: {c['hover']}; }}
+QListWidget[sectionlist="true"]::item:selected {{
+    background: {c['sel']}; color: {c['ink']}; border-left: 3px solid {c['hi']}; font-weight: 700;
+}}
 
 /* Lists and tables: dense, hairlines, sel + hi edge for the selected row */
 QListWidget, QTreeWidget, QTableWidget, QTableView, QTreeView, QListView {{

@@ -145,7 +145,7 @@ class OutputManager:
                 self._set("text", "ok", tdir, wrote=n > 0)
             except OSError as e:
                 self._set("text", "error", f"Cannot write to {tdir}: {e.strerror or e}. "
-                                           "Pick another folder in Outputs.")
+                                           "Pick another folder in Setup → Outputs.")
         else:
             self._set("text", "off")
 

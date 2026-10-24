@@ -379,7 +379,7 @@ class ScoreServer:
             httpd = _HTTPServer((host, port), handler)
         except OSError as e:
             self.error = (f"Port {port} is in use or blocked ({e.strerror or e}). "
-                          "Pick another port in Outputs.")
+                          "Pick another port in Setup → Outputs.")
             return False
         httpd.daemon_threads = True
         self._httpd, self.port, self.host, self.error = httpd, port, host, ""

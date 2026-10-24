@@ -1,5 +1,5 @@
 """
-The Buttons tab: operator panels.
+Setup → Buttons: operator panels.
 
 A button runs one action or several in a row (one undo step), and can have a
 keyboard shortcut. This replaces 1.x's connection wiring: instead of linking
@@ -13,7 +13,7 @@ from __future__ import annotations
 import copy
 from typing import List, Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import (QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QInputDialog,
                              QKeySequenceEdit, QLineEdit, QListWidget, QListWidgetItem, QScrollArea, QSpinBox,
@@ -182,6 +182,22 @@ class StepRow(QWidget):
         return d
 
 
+class PanelPicker(QComboBox):
+    """A drop-down of panels with the list-widget calls the tab uses."""
+
+    currentRowChanged = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.currentIndexChanged.connect(self.currentRowChanged)
+
+    def currentRow(self) -> int:
+        return self.currentIndex()
+
+    def setCurrentRow(self, row: int) -> None:
+        self.setCurrentIndex(row)
+
+
 class ButtonsTab(QWidget):
     def __init__(self, session: Session, parent=None):
         super().__init__(parent)
@@ -194,21 +210,23 @@ class ButtonsTab(QWidget):
         split = QSplitter(Qt.Orientation.Horizontal)
         root.addWidget(split)
 
-        # Panels
-        pw = QWidget()
-        pl = QVBoxLayout(pw)
-        pl.setContentsMargins(0, 0, 8, 0)
-        pl.addWidget(caps("Panels"))
-        self.panels = QListWidget()
+        # Panels and their buttons (one column: pick a panel, then its buttons)
+        bw = QWidget()
+        bl = QVBoxLayout(bw)
+        bl.setContentsMargins(0, 0, 8, 0)
+        bl.setSpacing(6)
+        bl.addWidget(caps("Panel"))
+        pr = QHBoxLayout()
+        pr.setSpacing(6)
+        self.panels = PanelPicker()
         self.panels.currentRowChanged.connect(self._panel_picked)
-        pl.addWidget(self.panels, 1)
-        r = QHBoxLayout()
-        r.addWidget(button("Add", "", self.add_panel))
-        r.addWidget(button("Rename", "", self.rename_panel))
+        pr.addWidget(self.panels, 1)
+        pr.addWidget(button("Add", "", self.add_panel, tip="Add a panel of buttons"))
+        pr.addWidget(button("Rename", "", self.rename_panel))
         self.del_panel = ConfirmButton("Delete")
         self.del_panel.confirmed.connect(self.delete_panel)
-        r.addWidget(self.del_panel)
-        pl.addLayout(r)
+        pr.addWidget(self.del_panel)
+        bl.addLayout(pr)
         cr = QHBoxLayout()
         cr.addWidget(caps("Columns"))
         self.columns = QSpinBox()
@@ -216,18 +234,14 @@ class ButtonsTab(QWidget):
         self.columns.valueChanged.connect(self._columns)
         cr.addWidget(self.columns)
         cr.addStretch(1)
-        pl.addLayout(cr)
-        split.addWidget(pw)
-
-        # Buttons
-        bw = QWidget()
-        bl = QVBoxLayout(bw)
-        bl.setContentsMargins(8, 0, 8, 0)
+        bl.addLayout(cr)
+        bl.addSpacing(6)
         bl.addWidget(caps("Buttons on this panel"))
         self.buttons = QListWidget()
         self.buttons.currentRowChanged.connect(self._button_picked)
         bl.addWidget(self.buttons, 1)
         r = QHBoxLayout()
+        r.setSpacing(6)
         r.addWidget(button("Add button", "accent", self.add_button))
         r.addWidget(button("Duplicate", "", self.duplicate_button))
         r.addWidget(button("Up", "", lambda: self.move_button(-1)))
@@ -284,7 +298,7 @@ class ButtonsTab(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setWidget(self.editor_w)
         split.addWidget(scroll)
-        split.setSizes([220, 320, 620])
+        split.setSizes([420, 640])
 
         session.panels.connect(self.refresh)
         session.structure.connect(self._fields_changed)

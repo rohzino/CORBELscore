@@ -8,12 +8,25 @@ from typing import Callable, List, Mapping, Optional
 
 from PyQt6.QtCore import QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen
-from PyQt6.QtWidgets import (QColorDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                             QSizePolicy, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QColorDialog, QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
+                             QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
 from ..core.board import Board, resolve_color
 from . import theme
 from .render import ImageCache, paint_board, qcolor
+
+
+def make_narrow(w: QWidget, min_chars: int = 6) -> None:
+    """Let a side column shrink without clipping: drop-downs stop sizing
+    themselves to their longest entry, and form rows put the label above
+    the field when the column is too narrow for both."""
+    for cb in w.findChildren(QComboBox):
+        cb.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        cb.setMinimumContentsLength(min_chars)
+        cb.setMinimumWidth(0)
+    for fl in w.findChildren(QFormLayout):
+        fl.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        fl.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
 
 def panel(parent: Optional[QWidget] = None, pad: int = 12, spacing: int = 8, vertical: bool = True):

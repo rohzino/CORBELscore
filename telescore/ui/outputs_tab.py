@@ -1,5 +1,5 @@
 """
-The Outputs tab: where scores go.
+Setup → Outputs: where scores go.
 
 Files for OBS text sources and graphics systems, a local web server for
 browser sources and remote control, and PNG pictures of boards. Every output

@@ -1,11 +1,11 @@
-"""The main window: start page, the five tabs, menus, files, recovery."""
+"""The main window: start page, the three tabs (Operate, Design, Setup), menus, files, recovery."""
 
 from __future__ import annotations
 
 import datetime as _dt
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from PyQt6.QtCore import QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PyQt6.QtGui import QAction, QActionGroup, QDesktopServices, QIcon, QKeySequence
@@ -17,6 +17,7 @@ from ..core.fields import ClockField
 from ..core.presets import make_project
 from ..core.project import Project, ProjectError
 from . import theme
+from .animations_page import AnimationsPage
 from .builder import BuildTab
 from .buttons_tab import ButtonsTab
 from .data_tab import DataTab
@@ -31,6 +32,7 @@ from .projector import ProjectorWindow
 from .session import Session
 from .startpage import StartPage
 from .widgets import Notice, StatusDot, label
+from .workspace import Sections
 
 FILTER = "TeleScore projects (*.tsproj);;TeleScore 1.x projects (*.json);;All files (*)"
 
@@ -313,23 +315,46 @@ class MainWindow(QMainWindow):
         self._update_title()
         self._update_actions()
 
-    def _build_workspace(self, keep_tab: int = 0):
+    def _build_workspace(self, keep: Optional[Tuple[int, str, str]] = None):
         s = self.session
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
         self.operate = OperateTab(s)
         self.operate.open_projector.connect(self.open_projector)
         self.operate.copy_url.connect(self._copy_board_url)
+        build = BuildTab(s)
+        build.library_requested.connect(lambda: self.goto("animations"))
+        self.design = Sections([("boards", "Boards", build),
+                                ("logic", "Logic", LogicTab(s)),
+                                ("animations", "Animations", AnimationsPage(s))], side="top")
+        self.setup = Sections([("fields", "Fields", DataTab(s)),
+                               ("live", "Live data", LiveTab(s, self.live)),
+                               ("buttons", "Buttons", ButtonsTab(s)),
+                               ("outputs", "Outputs", OutputsTab(s, self.ctl))], side="left")
         tabs.addTab(self.operate, "Operate")
-        tabs.addTab(BuildTab(s), "Build")
-        tabs.addTab(DataTab(s), "Data")
-        tabs.addTab(LogicTab(s), "Logic")
-        tabs.addTab(LiveTab(s, self.live), "Live data")
-        tabs.addTab(ButtonsTab(s), "Buttons")
-        tabs.addTab(OutputsTab(s, self.ctl), "Outputs")
-        tabs.setCurrentIndex(keep_tab)
+        tabs.addTab(self.design, "Design")
+        tabs.addTab(self.setup, "Setup")
+        self.pages: Dict[str, QWidget] = {"operate": self.operate, **self.design.pages, **self.setup.pages}
+        if keep is not None:
+            tabs.setCurrentIndex(keep[0])
+            self.design.show_section(keep[1])
+            self.setup.show_section(keep[2])
         self.tabs = tabs
         self._swap(tabs)
+
+    def goto(self, key: str) -> Optional[QWidget]:
+        """Show a page by key: operate, boards, logic, animations, fields, live, buttons or outputs."""
+        if self.tabs is None or key not in self.pages:
+            return None
+        if key == "operate":
+            self.tabs.setCurrentWidget(self.operate)
+        elif key in self.design.pages:
+            self.tabs.setCurrentWidget(self.design)
+            self.design.show_section(key)
+        else:
+            self.tabs.setCurrentWidget(self.setup)
+            self.setup.show_section(key)
+        return self.pages[key]
 
     def _close_project(self):
         for w in list(self.projectors):
@@ -522,10 +547,15 @@ class MainWindow(QMainWindow):
             self.header.saved.setText("")
             return
         p = self.session.project
-        name = p.name + ("" if p.path else " (not saved yet)")
         self.setWindowTitle(f"{'• ' if self.session.dirty else ''}{p.name} · TeleScore")
-        self.header.project.setText(name)
-        self.header.saved.setText("Unsaved changes" if self.session.dirty else "Saved")
+        self.header.project.setText(p.name)
+        if not p.path:
+            state = "Not saved yet"
+        elif self.session.dirty:
+            state = "Unsaved changes"
+        else:
+            state = "Saved"
+        self.header.saved.setText(state)
 
     def _set_on_top(self, on: bool, save: bool = True):
         if save:
@@ -545,7 +575,8 @@ class MainWindow(QMainWindow):
         self.centralWidget().layout().replaceWidget(old_header, self.header)
         old_header.deleteLater()
         if self.session is not None:
-            self._build_workspace(self.tabs.currentIndex() if self.tabs else 0)
+            keep = (self.tabs.currentIndex(), self.design.current(), self.setup.current()) if self.tabs else None
+            self._build_workspace(keep)
             self._update_title()
             self._lights()
         else:

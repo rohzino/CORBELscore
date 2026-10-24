@@ -15,8 +15,22 @@
   - A header light that turns amber when the bot goes silent.
   - Tokens kept out of project files.
 - **Animations in the builder.** Thirty-one built-ins plus custom recipes. They trigger when an element appears, disappears or changes, or from a condition, and preview on the canvas. Browser sources use a JavaScript copy of the same maths, and tests check that both agree.
-- **Logic tab and Live data tab.**
+- **Three tabs instead of seven.**
+  - Operate.
+  - Design: Boards, Logic and Animations, switched across the top so the canvas keeps its width.
+  - Setup: Fields, Live data, Buttons and Outputs, in a list down the left.
+
+  The Animations editor is a section now, not a pop-up. Button panels are picked from a drop-down above their buttons.
 - **Plan for an OBS plugin:** [docs/obs-plugin.md](docs/obs-plugin.md).
+- **Windows launcher** (`TeleScore.bat`). It sets up its own Python environment, and picks a 64-bit Python that PyQt6 supports.
+
+### Fixed
+Found on the first real Windows run:
+- Green buttons inside panels had lost their fill and showed dark text on dark. This affected Connect, Suggest bindings, Try it, a template's Start and the clock Start/Stop on Operate cards.
+- A disabled green button now looks disabled.
+- The header said "Saved" for a project that had never been saved.
+- The board was drawn thumbnail-sized when Design first opened. It now fits the canvas and keeps fitting until you zoom.
+- The inspector no longer runs off the right edge with a sideways scroll bar.
 
 ## 2.0.0a1
 
