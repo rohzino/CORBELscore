@@ -28,7 +28,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import re
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from xml.sax.saxutils import escape, quoteattr
 
 from ..core.engine import Snapshot

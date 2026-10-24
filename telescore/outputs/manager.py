@@ -16,8 +16,8 @@ from __future__ import annotations
 import os
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Callable, Dict, Optional
 
 from ..core.engine import Snapshot
 from ..core.project import OutputSettings, atomic_write_text

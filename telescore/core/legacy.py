@@ -135,13 +135,10 @@ def import_legacy(data: dict) -> Project:
                           tenths_fmt="ss.t")
                 if not stopwatch:
                     c._base_ms = initial
-                fields.append(ClockField(key, cname, clock=c))
+                fields.append(ClockField(key, cname, clock=c, buzzer=str(p.get("Buzzer Sound") or "")))
                 first_clock = first_clock or key
                 el = Element(kind="text", name=cname, x=x, y=y, w=w, h=h, text="{%s}" % key, fill=fill)
                 _style(el, p)
-                if p.get("Buzzer Sound"):
-                    notes.append(f"{cname}: the buzzer file {p['Buzzer Sound']!r} was kept out; set it again "
-                                 "in Data → the clock's buzzer.")
             elif ctype == "Points Display":
                 key = _unique(normalise_key(cname), used)
                 fields.append(CounterField(key, cname, minimum=None, ordinal=p.get("Suffix (st, nd, rd, th)") in (2, True),

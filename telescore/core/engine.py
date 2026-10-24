@@ -121,13 +121,19 @@ class Engine:
             items = list(self._fields.items())
             items.insert(index, (f.key, f))
             self._fields = OrderedDict(items)
-        self._undo.clear()
-        self._redo.clear()
+        self._structure_changed()
 
     def remove_field(self, key: str) -> None:
         self._fields.pop(key, None)
+        self._structure_changed()
+
+    def _structure_changed(self) -> None:
+        """Undo history refers to fields by key; after a structural change it
+        is cleared, and the snapshot is rebuilt so outputs match at once."""
         self._undo.clear()
         self._redo.clear()
+        if getattr(self, "_snapshot", None) is not None:
+            self.publish(force=True)
 
     def rename_field(self, old: str, new: str) -> None:
         f = self.field(old)
@@ -139,8 +145,7 @@ class Engine:
         items = [((new if k == old else k), v) for k, v in self._fields.items()]
         f.key = new
         self._fields = OrderedDict(items)
-        self._undo.clear()
-        self._redo.clear()
+        self._structure_changed()
 
     # ----- listeners -------------------------------------------------------
     def on_change(self, fn: Listener) -> None:

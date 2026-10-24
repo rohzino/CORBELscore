@@ -432,3 +432,23 @@ class ProjectTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RefactorTests(unittest.TestCase):
+    def test_rename_everywhere(self):
+        from telescore.core.refactor import field_references, rename_field_everywhere
+        p = PRESETS["Hockey"]()
+        self.assertIn("Button “Home minor”", field_references(p, "home.penalties"))
+        n = rename_field_everywhere(p, "home.penalties", "home.pen")
+        self.assertGreater(n, 0)
+        keys = set(p.engine.snapshot().values)
+        for b in p.boards:
+            self.assertEqual(b.missing_keys(keys), [])
+        txt = next(e.text for e in p.boards[0].elements if e.name == "Power play text")
+        self.assertIn("{home.pen.1.time}", txt)
+        rename_field_everywhere(p, "clock.game", "clock.main")
+        self.assertEqual(p.engine.field("home.pen").master, "clock.main")
+        for panel in p.panels:
+            for btn in panel.buttons:
+                p.engine.perform(btn.action, t=0)
+        self.assertEqual(field_references(p, "clock.game"), [])

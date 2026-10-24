@@ -279,6 +279,7 @@ class ClockField(Field):
         clock_kw = {k: kw.pop(k) for k in list(kw) if k in Clock.__dataclass_fields__ and not k.startswith("_")}
         value_ms = kw.pop("value_ms", None)
         kw.pop("running", None)
+        self.buzzer = str(kw.pop("buzzer", "") or "")   # sound file played when it reaches zero
         super().__init__(key, label, **kw)
         if clock is None:
             cfg = dict(clock_kw)
@@ -309,6 +310,8 @@ class ClockField(Field):
         d = super().to_dict()
         d.update(self.clock.to_dict(t))
         d["running"] = False
+        if self.buzzer:
+            d["buzzer"] = self.buzzer
         return d
 
 
