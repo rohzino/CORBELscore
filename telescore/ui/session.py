@@ -28,6 +28,9 @@ class Session(QObject):
     dirty_changed = pyqtSignal(bool)
     message = pyqtSignal(str, bool)           # text, is_alert
     expired = pyqtSignal(str)                 # clock key that hit zero
+    logic = pyqtSignal()                      # conditions changed
+    animations = pyqtSignal()                 # the project's animation recipes changed
+    source = pyqtSignal()                     # live-data settings changed
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
@@ -70,6 +73,23 @@ class Session(QObject):
     def values(self):
         snap = self.engine.snapshot()
         return snap.values if snap else {}
+
+    def fx(self):
+        snap = self.engine.snapshot()
+        return snap.fx if snap else {}
+
+    def conditions_changed(self) -> None:
+        self.engine.set_conditions(self.engine.logic.conditions)
+        self.logic.emit()
+        self.set_dirty()
+
+    def animations_changed(self) -> None:
+        self.animations.emit()
+        self.set_dirty()
+
+    def source_changed(self) -> None:
+        self.source.emit()
+        self.set_dirty()
 
     def act(self, action: dict) -> bool:
         """Run an operator action. Errors become a notice, never a crash."""

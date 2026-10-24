@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from typing import Callable, List, Mapping, Optional
 
 from PyQt6.QtCore import QRectF, QSize, Qt, QTimer, pyqtSignal
@@ -266,30 +268,65 @@ class Kbd(QLabel):
 
 
 class BoardView(QWidget):
-    """Paints a board scaled to fit, with live values."""
+    """Paints a board scaled to fit, with live values, condition effects and
+    animations (the same rules as the browser source)."""
 
     def __init__(self, parent=None, checker: bool = True, letterbox: Optional[str] = None):
         super().__init__(parent)
+        from ..core.animation import Tracker
         self.board: Optional[Board] = None
         self.values: Mapping[str, str] = {}
+        self.fx: Mapping[str, Mapping] = {}
         self.images = ImageCache()
         self.checker = checker
         self.letterbox = letterbox
+        self.tracker = Tracker()
+        self.animations: list = []
         self.setMinimumSize(160, 90)
         self._keys: set = set()
+        self._frame = QTimer(self)
+        self._frame.setInterval(16)
+        self._frame.timeout.connect(self._tick)
 
-    def setBoard(self, board: Optional[Board]) -> None:
+    def setBoard(self, board: Optional[Board], animations: Optional[list] = None) -> None:
+        if animations is not None:
+            self.animations = animations
         self.board = board
+        self.tracker.set_board(board, self.animations)
         self._keys = set(board.keys()) if board else set()
+        self.tracker.update(self.values, self.fx, time.monotonic(), animate=False)
         self.update()
 
-    def setValues(self, values: Mapping[str, str], changed: Optional[set] = None) -> None:
+    def setAnimations(self, animations: list) -> None:
+        self.animations = animations
+        self.tracker.set_board(self.board, animations)
+
+    def setValues(self, values: Mapping[str, str], changed: Optional[set] = None,
+                  fx: Optional[Mapping[str, Mapping]] = None) -> None:
         self.values = values
-        if changed is None or self.board is None or changed & self._keys or not self._keys:
+        if fx is not None:
+            self.fx = fx
+        self.tracker.update(self.values, self.fx, time.monotonic())
+        if self.tracker.active(time.monotonic()) and not self._frame.isActive():
+            self._frame.start()
+        if changed is None or self.board is None or changed & self._keys or "#fx" in changed or not self._keys:
+            self.update()
+
+    def play(self, eid: str, name: str) -> None:
+        """Preview an animation on one element (the builder's Try button)."""
+        if self.tracker.play(eid, name, time.monotonic()):
+            self._frame.start()
+
+    def _tick(self):
+        self.update()
+        if not self.tracker.active(time.monotonic()):
+            self._frame.stop()
             self.update()
 
     def refresh_keys(self) -> None:
         self._keys = set(self.board.keys()) if self.board else set()
+        self.tracker.set_board(self.board, self.animations)
+        self.tracker.update(self.values, self.fx, time.monotonic(), animate=False)
         self.update()
 
     def paintEvent(self, ev):
@@ -297,7 +334,8 @@ class BoardView(QWidget):
         if self.letterbox:
             p.fillRect(self.rect(), QColor(self.letterbox))
         if self.board is not None:
-            paint_board(p, self.board, self.values, QRectF(self.rect()), self.images, checker=self.checker)
+            paint_board(p, self.board, self.values, QRectF(self.rect()), self.images, checker=self.checker,
+                        fx=self.fx, tracker=self.tracker, now=time.monotonic())
         else:
             p.setPen(QColor(theme.CURRENT["muted"]))
             p.setFont(theme.tfont("small"))

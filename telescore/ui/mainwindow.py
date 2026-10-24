@@ -21,6 +21,9 @@ from .builder import BuildTab
 from .buttons_tab import ButtonsTab
 from .data_tab import DataTab
 from .hotkeys import GlobalHotkeys, HotkeyRouter
+from .live_ctl import LiveController
+from .live_tab import LiveTab
+from .logic_tab import LogicTab
 from .operate import OperateTab
 from .outputs_ctl import OutputController
 from .outputs_tab import OutputsTab
@@ -99,7 +102,7 @@ class HeaderBar(QFrame):
         lay.addWidget(self.saved)
         lay.addStretch(1)
         self.lights: Dict[str, StatusDot] = {}
-        for key, text in (("files", "Files"), ("web", "Web")):
+        for key, text in (("live", "Live"), ("files", "Files"), ("web", "Web")):
             d = StatusDot()
             t = label(text, "label")
             lay.addWidget(d)
@@ -116,6 +119,7 @@ class MainWindow(QMainWindow):
         self.settings = settings or QSettings("TeleScore", "TeleScore")
         self.session: Optional[Session] = None
         self.ctl: Optional[OutputController] = None
+        self.live: Optional[LiveController] = None
         self.projectors: List[ProjectorWindow] = []
         self.buzzer = Buzzer()
         self.global_keys = GlobalHotkeys()
@@ -299,8 +303,11 @@ class MainWindow(QMainWindow):
         s.panels.connect(self._bind_hotkeys)
         self.ctl = OutputController(s, self)
         self.ctl.status.connect(self._lights)
+        self.live = LiveController(s, self.settings, self)
+        self.live.status.connect(self._lights)
         self._build_workspace()
         self.ctl.start()
+        self.live.start()
         s.start()
         self._bind_hotkeys()
         self._update_title()
@@ -316,6 +323,8 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.operate, "Operate")
         tabs.addTab(BuildTab(s), "Build")
         tabs.addTab(DataTab(s), "Data")
+        tabs.addTab(LogicTab(s), "Logic")
+        tabs.addTab(LiveTab(s, self.live), "Live data")
         tabs.addTab(ButtonsTab(s), "Buttons")
         tabs.addTab(OutputsTab(s, self.ctl), "Outputs")
         tabs.setCurrentIndex(keep_tab)
@@ -331,6 +340,10 @@ class MainWindow(QMainWindow):
         if self.ctl is not None:
             self.ctl.stop()
             self.ctl.deleteLater()
+        if self.live is not None:
+            self.live.stop()
+            self.live.deleteLater()
+            self.live = None
         self.global_keys.stop()
         self.router.set_bindings({})
         self.session, self.ctl, self.tabs = None, None, None
@@ -496,6 +509,10 @@ class MainWindow(QMainWindow):
         o = self.session.project.outputs
         web = "live" if self.ctl.server.running else ("error" if o.http_enabled else "off")
         self.header.lights["web"].setState(web)
+        if self.live is not None:
+            st = self.live.source.status.state
+            self.header.lights["live"].setState({"live": "live", "connecting": "busy", "stale": "busy",
+                                                 "error": "error"}.get(st, "off"))
 
     # ----- window ------------------------------------------------------------------
     def _update_title(self):

@@ -237,6 +237,56 @@ class DataTab(QWidget):
         f = self._current()
         if f is None:
             return
+        # Live data, rules and override: the value pipeline (core.logic) --------------
+        pipe, pl = panel()
+        pl.addWidget(caps("What this field outputs"))
+        pform = QFormLayout()
+        pform.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        src = QComboBox()
+        src.setEditable(True)
+        src.addItem("")
+        for k in sorted(self.session.engine.sources, key=str.lower):
+            src.addItem(k)
+        src.setCurrentText(f.source)
+        src.lineEdit().setPlaceholderText("not bound to live data")
+        src.setToolTip("A key from the Live data tab, e.g. HomeScore. The field then shows the bot's value.")
+
+        def set_src(*_):
+            f.source = src.currentText().strip()
+            self.changed()
+        src.activated.connect(set_src)
+        src.lineEdit().editingFinished.connect(set_src)
+        pform.addRow(caps("Live key"), src)
+        rules = QLineEdit(f.rules)
+        rules.setPlaceholderText("0:00=FINAL|2:00=Two-minute warning")
+        rules.setToolTip("value=replacement pairs joined by |. * matches anything, NULL matches empty, "
+                         "{value} inserts the value. \\| and \\= are literal.")
+        rules.editingFinished.connect(lambda: (setattr(f, "rules", rules.text().strip()), self.changed()))
+        pform.addRow(caps("Rules"), rules)
+        orow = QHBoxLayout()
+        ov = QLineEdit(f.override)
+        ov.setPlaceholderText("fixed text to show instead")
+        tog = button("Override on" if f.override_on else "Override off", "accent" if f.override_on else "alert",
+                     checkable=True)
+        tog.setChecked(f.override_on)
+
+        def set_ov(*_):
+            f.override = ov.text()
+            f.override_on = tog.isChecked()
+            tog.setText("Override on" if f.override_on else "Override off")
+            tog.setProperty("role", "accent" if f.override_on else "alert")
+            theme.repolish(tog)
+            self.changed()
+        ov.editingFinished.connect(set_ov)
+        tog.toggled.connect(set_ov)
+        orow.addWidget(ov, 1)
+        orow.addWidget(tog)
+        pform.addRow(caps("Override"), orow)
+        pl.addLayout(pform)
+        pl.addWidget(label("Order: override, then live key, then rules, then conditional rules from Logic. The text "
+                           "files, XML, JSON and every board get the result.", "small", muted=True, wrap=True))
+        self.editor.addWidget(pipe)
+
         refs = self.session.references(f.key)
         self.session.engine.remove_field(f.key)
         self._key = None

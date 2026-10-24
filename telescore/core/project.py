@@ -30,7 +30,7 @@ __all__ = ["Project", "Panel", "Button", "OutputSettings", "ProjectError", "FORM
 
 FORMAT = "telescore-project"
 VERSION = 2
-APP_VERSION = "2.0.0a1"
+APP_VERSION = "2.0.0a2"
 
 
 class ProjectError(ValueError):

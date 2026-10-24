@@ -27,22 +27,26 @@ class ProjectorWindow(QWidget):
         session.board_edited.connect(self._edited)
         session.boards.connect(self._boards)
         self._boards()
-        self.view.setValues(session.values())
+        self.view.setValues(session.values(), None, session.fx())
+        session.animations.connect(self._anims)
 
     def _boards(self):
         b = self.session.board(self.board_id)
         if b is None:
             self.close()
             return
-        self.view.setBoard(b)
+        self.view.setBoard(b, self.session.project.animations)
         self.setWindowTitle(f"{b.name} · TeleScore projector")
+
+    def _anims(self):
+        self.view.setAnimations(self.session.project.animations)
 
     def _edited(self, bid: str):
         if bid == self.board_id:
             self.view.refresh_keys()
 
     def _values(self, snap, changed):
-        self.view.setValues(snap.values, changed)
+        self.view.setValues(snap.values, changed, snap.fx)
 
     def show_on(self, screen_index: int) -> None:
         screens = QGuiApplication.screens()

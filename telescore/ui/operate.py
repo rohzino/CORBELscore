@@ -42,6 +42,13 @@ class Card(QWidget):
         self.caption.setToolTip(f"Field key: {f.key}")
         head.addWidget(self.caption)
         head.addStretch(1)
+        # LIVE (bound to a bot) and OVERRIDE states, as a colour and a word.
+        self.flag = StateChip("", "muted")
+        self.flag.hide()
+        self.flag.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.flag.mousePressEvent = lambda _ev: self._clear_override()
+        head.addWidget(self.flag)
+        self._flag_state = None
         self.head = head
         self.body.addLayout(head)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
@@ -55,6 +62,31 @@ class Card(QWidget):
 
     def update_values(self, values) -> None:
         pass
+
+    def update_meta(self, snap) -> None:
+        f = self.f
+        if f.override_on:
+            state = ("OVERRIDE", "user", "Showing the override text. Click to turn the override off.")
+        elif f.source and f.key in snap.live:
+            state = ("LIVE", "hi", f"Following live data {f.source}. Buttons change the field's own value, "
+                                   "which shows again if the bot stops sending it.")
+        elif f.source:
+            state = ("WAITING", "muted", f"Bound to live data {f.source}, which has not arrived. "
+                                         "Showing the field's own value.")
+        else:
+            state = None
+        if state == self._flag_state:
+            return
+        self._flag_state = state
+        self.flag.setVisible(state is not None)
+        if state:
+            self.flag.set(state[0], state[1])
+            self.flag.setToolTip(state[2])
+
+    def _clear_override(self) -> None:
+        if self.f.override_on:
+            self.f.override_on = False
+            self.session.fields_changed()
 
 
 def _entry(placeholder: str, on_enter: Callable[[str], None], width: int = 0) -> QLineEdit:
@@ -411,6 +443,7 @@ class OperateTab(QWidget):
         session.panels.connect(self.rebuild_buttons)
         session.boards.connect(self.rebuild_boards)
         session.board_edited.connect(self._board_edited)
+        session.animations.connect(self._anims_changed)
         self.rebuild_cards()
         self.rebuild_buttons()
         self.rebuild_boards()
@@ -454,14 +487,19 @@ class OperateTab(QWidget):
             self.cards_layout.addLayout(grid)
         self.cards_layout.addStretch(1)
         values = self.session.values()
+        snap = self.session.engine.snapshot()
         for c in self.cards:
             c.update_values(values)
+            c.update_meta(snap)
 
     def _on_snapshot(self, snap, changed) -> None:
+        meta = "#live" in changed
         for c in self.cards:
             if c.keys() & changed:
                 c.update_values(snap.values)
-        self.preview.setValues(snap.values, changed)
+            if meta:
+                c.update_meta(snap)
+        self.preview.setValues(snap.values, changed, snap.fx)
 
     # ----- buttons ---------------------------------------------------------
     def rebuild_buttons(self) -> None:
@@ -498,8 +536,11 @@ class OperateTab(QWidget):
 
     def _pick_board(self, *_):
         bid = self.board_pick.currentData()
-        self.preview.setBoard(self.session.board(bid) if bid else None)
-        self.preview.setValues(self.session.values())
+        self.preview.setBoard(self.session.board(bid) if bid else None, self.session.project.animations)
+        self.preview.setValues(self.session.values(), None, self.session.fx())
+
+    def _anims_changed(self):
+        self.preview.setAnimations(self.session.project.animations)
 
     def _board_edited(self, bid: str):
         if self.preview.board is not None and self.preview.board.id == bid:

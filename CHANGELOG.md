@@ -1,6 +1,24 @@
 # Changelog
 
-## 2.0.0a1 (unreleased)
+## 2.0.0a2 (unreleased)
+
+### New
+- **Rules, overrides and conditions.** These follow the SportzSuite model and apply to text, XML and JSON as well as graphics:
+  - The value pipeline runs override, then live key, then rules, then conditional rules.
+  - Condition tests: has value, not equals, greater, less, changes by, changes, contains, empty.
+  - Element actions: show (for ms or `*`), show once, hide, colour, fill, font, alternate picture, conditional rule, animate.
+  - Field actions: conditional rule, set, pulse, run a button's action.
+  - Any action can have a finish action after a delay.
+- **Sportzcast live data.** MQTT to the cloud (TLS) or a local ScoreConnect III / Scorelink+, the legacy socket (XML or JSON stream), and LiveXML or JSON files and URLs.
+  - Binding suggestions for base-contract and LiveXML names.
+  - LIVE, OVERRIDE and WAITING states on Operate cards.
+  - A header light that turns amber when the bot goes silent.
+  - Tokens kept out of project files.
+- **Animations in the builder.** Thirty-one built-ins plus custom recipes. They trigger when an element appears, disappears or changes, or from a condition, and preview on the canvas. Browser sources use a JavaScript copy of the same maths, and tests check that both agree.
+- **Logic tab and Live data tab.**
+- **Plan for an OBS plugin:** [docs/obs-plugin.md](docs/obs-plugin.md).
+
+## 2.0.0a1
 
 This is a complete rebuild. Version 1.x projects open directly and are converted on the way in.
 

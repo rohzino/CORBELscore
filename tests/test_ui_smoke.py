@@ -239,9 +239,10 @@ class UISmokeTests(unittest.TestCase):
         n = win.session.rename_key_everywhere("home.penalties", "home.pen")
         self.assertGreater(n, 0)
         self.wait(50)
-        win.tabs.setCurrentIndex(3)
+        win.tabs.setCurrentIndex(5)
         self.wait(50)
-        bt = win.tabs.widget(3)
+        bt = win.tabs.widget(5)
+        self.assertEqual(win.tabs.tabText(5), "Buttons")
         bt.add_button()
         self.wait(30)
         self.assertEqual(p.panels[0].buttons[-1].label, "New button")
@@ -326,6 +327,115 @@ class UISmokeTests(unittest.TestCase):
         self.assertEqual(win.session.project.name, "Friday Hockey")
         self.assertTrue(win.notice.isVisible())
         self.shot(win, "imported 1x project")
+
+    def test_logic_tab_conditions(self):
+        from telescore.core.logic import Condition
+        win = self.make_window()
+        p = self.load(win, "Hockey")
+        lt = win.tabs.widget(3)
+        self.assertEqual(win.tabs.tabText(3), "Logic")
+        win.tabs.setCurrentIndex(3)
+        self.wait(50)
+        lt.add()
+        self.wait(30)
+        c = p.engine.logic.conditions[-1]
+        bug = p.boards[0]
+        c.principal, c.op, c.target, c.action, c.arg = "home.score", "changes", bug.elements[2].id, "animate", "Pulse"
+        win.session.conditions_changed()
+        self.wait(30)
+        lt.list.setCurrentRow(0)
+        self.wait(30)
+        self.shot(win, "logic tab")
+        p.engine.perform({"do": "add", "field": "home.score"})
+        self.wait(50)
+        self.assertEqual(p.engine.snapshot().fx[bug.elements[2].id]["anim"]["name"], "Pulse")
+        # field-target condition reaches the XML file
+        p.engine.logic.conditions.append(Condition(principal="clock.game", op="equals", value="20:00",
+                                                   target_kind="field", target="home.name", action="rule",
+                                                   arg="Home=PREGAME"))
+        win.session.conditions_changed()
+        self.wait(400)
+        with open(os.path.join(p.outputs.folder, "text", "home.name.txt"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "PREGAME")
+        lt.duplicate()
+        lt.move(-1)
+        lt.delete()
+        self.wait(30)
+
+    def test_live_tab_and_binding(self):
+        win = self.make_window()
+        p = self.load(win, "Basketball")
+        path = os.path.join(self.tmp, "live.xml")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("<info><Hscore>42</Hscore><Vscore>30</Vscore><period>2</period></info>")
+        tab = win.tabs.widget(4)
+        self.assertEqual(win.tabs.tabText(4), "Live data")
+        win.tabs.setCurrentIndex(4)
+        tab.kind.setCurrentIndex(tab.kind.findData("livexml"))
+        tab._kind_changed()
+        tab.path.setText(path)
+        tab.poll.setValue(50)
+        tab.apply()
+        end = time.monotonic() + 5
+        while time.monotonic() < end and "Hscore" not in win.live.keys():
+            self.wait(50)
+        self.assertEqual(win.live.source.status.state, "live")
+        from PyQt6.QtWidgets import QMessageBox
+        orig = QMessageBox.question
+        QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes)
+        try:
+            tab.automap()
+        finally:
+            QMessageBox.question = orig
+        self.wait(200)
+        v = p.engine.snapshot().values
+        self.assertEqual((v["home.score"], v["away.score"], v["period"]), ("42", "30", "2nd"))
+        win.tabs.setCurrentIndex(0)
+        self.wait(100)
+        from telescore.ui.operate import CounterCard
+        card = next(c for c in win.operate.cards if isinstance(c, CounterCard) and c.f.key == "home.score")
+        self.assertEqual(card.flag.text(), "LIVE")
+        self.shot(win, "operate with live data")
+        win.tabs.setCurrentIndex(4)
+        self.wait(100)
+        self.shot(win, "live data tab")
+        self.assertIn(win.header.lights["live"]._state, ("live", "ok"))
+        tab.disconnect()
+        self.wait(100)
+
+    def test_animations_dialog_and_inspector(self):
+        from telescore.ui.animations_dialog import AnimationsDialog
+        win = self.make_window()
+        p = self.load(win, "General scoreboard")
+        win.tabs.setCurrentIndex(1)
+        bt = win.tabs.widget(1)
+        self.wait(50)
+        dlg = AnimationsDialog(win.session, win)
+        dlg.show()
+        dlg.new()
+        self.assertEqual(len(p.animations), 1)
+        dlg.sp_x.setValue(-300)
+        self.assertEqual(p.animations[0].x, -300)
+        dlg.name.setText("Sweep")
+        dlg._rename()
+        dlg.copy_current()
+        self.assertEqual(len(p.animations), 2)
+        self.wait(200)
+        self.shot(dlg, "animations dialog")
+        dlg.delete()
+        dlg.close()
+        el = bt.board.elements[3]
+        bt.canvas.select_ids([el.id])
+        self.wait(30)
+        cb, _ = bt.inspector.m_combos["anim_in"]
+        self.assertGreaterEqual(cb.findData("Sweep"), 0)
+        cb.setCurrentIndex(cb.findData("Sweep"))
+        cb.activated.emit(cb.currentIndex())
+        self.assertEqual(el.anim_in, "Sweep")
+        bt._try_anim("Sweep")
+        self.wait(120)
+        self.shot(win, "builder mid animation")
+        self.wait(800)
 
     @classmethod
     def tearDownClass(cls):

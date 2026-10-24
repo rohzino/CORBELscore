@@ -9,11 +9,13 @@ shrink-to-fit.
 from __future__ import annotations
 
 import os
-from typing import Dict, Mapping, Optional, Tuple
+import time
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 from PyQt6.QtCore import QPointF, QRectF, QSizeF, Qt
 from PyQt6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage, QPainter, QPainterPath, QPen)
 
+from ..core.animation import Tracker, element_text
 from ..core.board import Board, Element, render_template, resolve_color
 from .theme import set_tabular
 
@@ -65,8 +67,8 @@ class ImageCache:
 DEFAULT_IMAGES = ImageCache()
 
 
-def element_font(e: Element, size: Optional[float] = None) -> QFont:
-    f = QFont(e.font or "Archivo")
+def element_font(e: Element, size: Optional[float] = None, family: str = "") -> QFont:
+    f = QFont(family or e.font or "Archivo")
     px = max(1.0, float(size if size is not None else e.size))
     f.setPixelSize(max(1, round(px)))
     w = min(WEIGHTS, key=lambda v: abs(v - int(e.weight or 400)))
@@ -82,8 +84,8 @@ def element_font(e: Element, size: Optional[float] = None) -> QFont:
     return f
 
 
-def _fitted_font(e: Element, text: str, avail_w: float, avail_h: float) -> QFont:
-    f = element_font(e)
+def _fitted_font(e: Element, text: str, avail_w: float, avail_h: float, family: str = "") -> QFont:
+    f = element_font(e, family=family)
     if not e.fit or not text:
         return f
     size = float(e.size)
@@ -95,7 +97,7 @@ def _fitted_font(e: Element, text: str, avail_w: float, avail_h: float) -> QFont
             break
         ratio = min(avail_w / max(w, 1.0), avail_h / max(h, 1.0), 0.97)
         size = max(6.0, size * ratio)
-        f = element_font(e, size)
+        f = element_font(e, size, family)
         if size <= 6.0:
             break
     return f
@@ -111,13 +113,31 @@ def fit_rect(src: QSizeF, dst: QRectF) -> QRectF:
 
 
 def paint_element(p: QPainter, e: Element, values: Mapping[str, str], images: ImageCache = DEFAULT_IMAGES,
-                  show_templates: bool = False) -> None:
+                  show_templates: bool = False, fx: Optional[Mapping[str, Any]] = None,
+                  look: Optional[Mapping[str, Any]] = None) -> None:
     """Paint ``e`` in board coordinates. ``show_templates`` draws the raw
-    template text (the builder's design view) instead of live values."""
+    template text (the builder's design view) instead of live values.
+    ``fx`` are condition effects (colour, fill, font, picture, rule); ``look``
+    is an animation frame from core.animation (offset, scale, opacity, clip)."""
+    fx = fx or {}
     rect = QRectF(e.x, e.y, e.w, e.h)
     p.save()
-    p.setOpacity(max(0.0, min(1.0, float(e.opacity))))
-    fill = qcolor(resolve_color(e.fill, values))
+    opacity = float(e.opacity)
+    if look:
+        opacity *= float(look.get("opacity", 1.0))
+        dx, dy, sc = float(look.get("x", 0)), float(look.get("y", 0)), float(look.get("scale", 1.0))
+        if dx or dy or sc != 1.0:
+            c = rect.center()
+            p.translate(c.x() + dx, c.y() + dy)
+            p.scale(sc, sc)
+            p.translate(-c.x(), -c.y())
+        x0, y0, x1, y1 = look.get("clip", (0.0, 0.0, 1.0, 1.0))
+        if (x0, y0, x1, y1) != (0.0, 0.0, 1.0, 1.0):
+            p.setClipRect(QRectF(e.x + e.w * x0, e.y + e.h * y0, e.w * (x1 - x0), e.h * (y1 - y0)),
+                          Qt.ClipOperation.IntersectClip)
+    p.setOpacity(p.opacity() * max(0.0, min(1.0, opacity)))   # multiplies a ghosted or fading parent
+    fill_spec = fx.get("fill") or (fx.get("color") if e.kind == "box" else "") or e.fill
+    fill = qcolor(resolve_color(fill_spec, values))
     stroke = qcolor(resolve_color(e.stroke, values))
     sw = float(e.stroke_width or 0)
     path = QPainterPath()
@@ -129,30 +149,32 @@ def paint_element(p: QPainter, e: Element, values: Mapping[str, str], images: Im
         p.fillPath(path, QBrush(fill))
 
     if e.kind == "text":
-        text = e.text if show_templates else render_template(e.text, values)
+        text = e.text if show_templates else element_text(e, values, fx)
         if text:
             inset = float(e.padding or 0) + sw
             area = rect.adjusted(inset, inset, -inset, -inset)
-            f = _fitted_font(e, text, area.width(), area.height())
+            f = _fitted_font(e, text, area.width(), area.height(), str(fx.get("font") or ""))
             p.setFont(f)
-            col = qcolor(resolve_color(e.color, values)) or QColor("#ffffff")
+            col = qcolor(resolve_color(fx.get("color") or e.color, values)) or QColor("#ffffff")
             p.setPen(col)
             h = {"left": Qt.AlignmentFlag.AlignLeft, "right": Qt.AlignmentFlag.AlignRight}.get(
                 e.align, Qt.AlignmentFlag.AlignHCenter)
             v = {"top": Qt.AlignmentFlag.AlignTop, "bottom": Qt.AlignmentFlag.AlignBottom}.get(
                 e.valign, Qt.AlignmentFlag.AlignVCenter)
-            p.setClipRect(rect)
+            p.save()
+            p.setClipRect(rect, Qt.ClipOperation.IntersectClip)
             p.drawText(area, h.value | v.value | Qt.TextFlag.TextSingleLine.value, text)
-            p.setClipping(False)
+            p.restore()
     elif e.kind == "image":
-        src = e.src if show_templates else render_template(e.src, values)
+        src = e.src if show_templates else (fx.get("src") or render_template(e.src, values))
         img = images.get(src.strip()) if src and not show_templates else None
         if img is not None:
             target = fit_rect(QSizeF(img.size()), rect) if e.contain else rect
             p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-            p.setClipPath(path)
+            p.save()
+            p.setClipPath(path, Qt.ClipOperation.IntersectClip)
             p.drawImage(target, img)
-            p.setClipping(False)
+            p.restore()
         elif show_templates or src:
             # Placeholder so an empty picture is still findable in the builder.
             p.setPen(QPen(QColor(128, 128, 128, 160), 1, Qt.PenStyle.DashLine))
@@ -174,7 +196,9 @@ def paint_element(p: QPainter, e: Element, values: Mapping[str, str], images: Im
 
 def paint_board(p: QPainter, board: Board, values: Mapping[str, str], target: QRectF,
                 images: ImageCache = DEFAULT_IMAGES, letterbox: Optional[QColor] = None,
-                checker: bool = False, show_templates: bool = False) -> QRectF:
+                checker: bool = False, show_templates: bool = False,
+                fx: Optional[Mapping[str, Mapping[str, Any]]] = None, tracker: Optional[Tracker] = None,
+                now: Optional[float] = None) -> QRectF:
     """Paint ``board`` scaled to fit ``target``. Returns the rect the canvas
     occupies. ``checker`` draws a transparency checkerboard behind a board
     with no background, so a keying graphic is visible in the UI."""
@@ -193,13 +217,20 @@ def paint_board(p: QPainter, board: Board, values: Mapping[str, str], target: QR
     s = canvas.width() / board.width
     p.scale(s, s)
     p.setClipRect(QRectF(0, 0, board.width, board.height))
+    fx = fx or {}
     for e in board.elements:
+        efx = fx.get(e.id, {})
+        look = None
         if show_templates:
             if not e.visible:
                 continue
-        elif not e.shown(values):
+        elif tracker is not None:
+            look = tracker.look(e, now if now is not None else time.monotonic())
+            if look is None:
+                continue
+        elif not Tracker.target_visible(e, values, efx):
             continue
-        paint_element(p, e, values, images, show_templates)
+        paint_element(p, e, values, images, show_templates, efx, look)
     p.restore()
     return canvas
 
@@ -221,12 +252,14 @@ def draw_checker(p: QPainter, rect: QRectF, size: float = 12.0) -> None:
     p.restore()
 
 
-def render_png(board: Board, values: Mapping[str, str], path: str, images: ImageCache = DEFAULT_IMAGES) -> bool:
-    """Write ``board`` at its own size as a transparent PNG."""
+def render_png(board: Board, values: Mapping[str, str], path: str, images: ImageCache = DEFAULT_IMAGES,
+               fx: Optional[Mapping[str, Mapping[str, Any]]] = None) -> bool:
+    """Write ``board`` at its own size as a transparent PNG (effects applied,
+    animations at rest)."""
     img = QImage(board.width, board.height, QImage.Format.Format_ARGB32_Premultiplied)
     img.fill(Qt.GlobalColor.transparent)
     p = QPainter(img)
-    paint_board(p, board, values, QRectF(0, 0, board.width, board.height), images)
+    paint_board(p, board, values, QRectF(0, 0, board.width, board.height), images, fx=fx)
     p.end()
     tmp = path + ".tmp.png"
     if not img.save(tmp, "PNG"):

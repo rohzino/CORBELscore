@@ -46,6 +46,7 @@ class OutputController(QObject):
         session.boards.connect(self.sync_boards)
         session.board_edited.connect(lambda _bid: self.sync_boards())
         session.structure.connect(self.sync_assets)
+        session.animations.connect(self.sync_boards)
         session.outputs.connect(self.apply)
 
     def start(self) -> None:
@@ -81,6 +82,7 @@ class OutputController(QObject):
 
     def sync_boards(self) -> None:
         self.data.set_boards([b.to_dict() for b in self.session.project.boards])
+        self.data.animations = [a.to_dict() for a in self.session.project.animations]
         self.sync_assets()
         for bid in self.session.project.outputs.image_boards:
             self._png_due[bid] = 0.0
@@ -136,7 +138,7 @@ class OutputController(QObject):
         boards = {b.id: b for b in self.session.project.boards}
         for bid in self.session.project.outputs.image_boards:
             b = boards.get(bid)
-            if b is not None and (changed & set(b.keys()) or not b.keys()):
+            if b is not None and (changed & set(b.keys()) or "#fx" in changed or not b.keys()):
                 self._png_due.setdefault(bid, time.monotonic())
 
     def _write_pngs(self):
@@ -153,7 +155,7 @@ class OutputController(QObject):
             try:
                 os.makedirs(folder, exist_ok=True)
                 safe = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in b.name).strip() or b.id
-                ok = render_png(b, values, os.path.join(folder, safe + ".png"), self.images)
+                ok = render_png(b, values, os.path.join(folder, safe + ".png"), self.images, self.session.fx())
                 self.png_state[bid] = "ok" if ok else "Could not write the picture."
             except OSError as e:
                 self.png_state[bid] = f"Cannot write to {folder}: {e.strerror or e}"

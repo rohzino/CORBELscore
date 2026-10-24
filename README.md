@@ -11,6 +11,9 @@ This is a community continuation of [TeleScore](https://github.com/JumpShot-Inte
 - **Operate tab.** Each field gets a card: clocks with Start/Stop, ±1 s and ±1 min, and typed times; score buttons; text, choices, on/off, penalties and pictures. Your own buttons sit beside them with their shortcuts, next to a live preview of any board. Every action can be undone.
 - **Build tab.** This is the scoreboard designer. Boards are fixed canvases (1920 × 1080 by default). Drag and resize with eight handles, and elements snap to a grid and to other elements. You can align, distribute, reorder, copy and paste, and undo or redo. Drag a field onto the board to show it. Text shrinks to fit, colours can follow fields such as `{home.color}`, and an element can be shown only while a field is on.
 - **Data tab.** Counters, text, on/off, choices, clocks, penalties and pictures. Renaming a field updates every board and button that uses it.
+- **Logic tab.** SportzSuite-style conditions: "if `home.timeouts` changes by -1, then animate the time-out graphic", or "if the clock has value 0:00, then show FINAL". Together with rules ("0:00=FINAL") and overrides, they shape the text files and XML as well as the graphics. See [docs/logic.md](docs/logic.md).
+- **Live data tab.** Sportzcast scoreboard data over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML file. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
+- **Animations.** Thirty-one built-in moves: fly, wipe, fade, slide, pop, drop, flash, pulse, shake and bump. You can also make your own: offset, scale, opacity, wipe, easing, delay and repeat. Elements animate when they appear, disappear or change, or when a condition says so. Animations show in browser sources, projector windows and the builder preview.
 - **Buttons tab.** A button runs one or more actions as one undo step, for example "Next quarter: next period, reset game clock, reset shot clock". Any button can have a keyboard shortcut.
 - **Outputs tab.**
   - Text files: one per value, for OBS Text sources.
@@ -75,6 +78,7 @@ python -m unittest discover -s tests -v
 
 - **Engine, feeds, XML schema, web server and 1.x import.** These need only the standard library; `lxml` adds the XSD check.
 - **`tests/test_overlay_browser.py`.** This renders every template's boards in Chromium, if Playwright is installed.
+- **`tests/test_logic.py` and `tests/test_sportzcast.py`.** Rules, overrides and conditions, against fake MQTT brokers, legacy sockets and LiveXML files.
 - **`tests/test_ui_smoke.py`.** This drives the real desktop app offscreen and saves a screenshot of every tab. Set `TELESCORE_SHOTS` to choose the folder.
 
 ## Build a standalone app

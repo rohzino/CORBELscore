@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboB
                              QListWidget, QListWidgetItem, QMenu, QScrollArea, QSpinBox, QSplitter,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from ..core.animation import Tracker, library, sample
 from ..core.board import Board, Element, new_id, resolve_color
 from . import theme
 from .render import ImageCache, draw_checker, paint_element, qcolor
@@ -108,10 +109,12 @@ class ElementItem(QGraphicsObject):
         p.save()
         p.translate(-self.el.x, -self.el.y)
         values = self.canvas.values
-        hidden = not self.el.shown(values) and not self.canvas.show_templates
+        fx = {} if self.canvas.show_templates else self.canvas.fx.get(self.el.id, {})
+        hidden = not Tracker.target_visible(self.el, values, fx) and not self.canvas.show_templates
         if hidden:
             p.setOpacity(0.25)  # conditional element whose condition is off: ghosted
-        paint_element(p, self.el, values, self.canvas.images, self.canvas.show_templates)
+        look = self.canvas.preview_look(self.el)
+        paint_element(p, self.el, values, self.canvas.images, self.canvas.show_templates, fx, look)
         p.restore()
         s = max(self.canvas.scale_factor(), 0.01)
         c = theme.CURRENT
@@ -268,7 +271,12 @@ class Canvas(QGraphicsView):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.board: Optional[Board] = None
         self.values: Dict[str, str] = {}
+        self.fx: Dict[str, dict] = {}
         self.images = ImageCache()
+        self._previews: Dict[str, tuple] = {}     # element id -> (Animation, start)
+        self._anim_timer = QTimer(self)
+        self._anim_timer.setInterval(16)
+        self._anim_timer.timeout.connect(self._anim_frame)
         self.items_by_id: Dict[str, ElementItem] = {}
         self.show_templates = False
         self.grid_on = True
@@ -286,6 +294,32 @@ class Canvas(QGraphicsView):
 
     def scale_factor(self) -> float:
         return self.transform().m11()
+
+    # ----- animation preview ------------------------------------------------------
+    def play(self, eid: str, anim) -> None:
+        """Play ``anim`` (core.animation.Animation) on one element, then show it at rest."""
+        import time as _t
+        self._previews[eid] = (anim, _t.monotonic())
+        self._anim_timer.start()
+
+    def preview_look(self, el: Element):
+        hit = self._previews.get(el.id)
+        if not hit:
+            return None
+        import time as _t
+        anim, start = hit
+        elapsed = (_t.monotonic() - start) * 1000.0
+        if elapsed >= anim.total + 300:     # hold the end a moment, then back to normal
+            return None
+        return sample(anim, min(elapsed, anim.total))
+
+    def _anim_frame(self) -> None:
+        import time as _t
+        now = _t.monotonic()
+        self._previews = {k: v for k, v in self._previews.items() if (now - v[1]) * 1000.0 < v[0].total + 300}
+        self.scene().update()
+        if not self._previews:
+            self._anim_timer.stop()
 
     # ----- model <-> items --------------------------------------------------
     def set_board(self, board: Optional[Board], keep_selection: bool = True) -> None:
@@ -611,6 +645,8 @@ class Inspector(QWidget):
     edit = pyqtSignal(str, object)          # property, value  -> applied to all selected elements
     board_edit = pyqtSignal(str, object)    # property, value  -> the board
     browse_image = pyqtSignal()
+    try_anim = pyqtSignal(str)              # play an animation on the selection
+    open_library = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -782,7 +818,37 @@ class Inspector(QWidget):
         f.addRow("", self.i_contain)
         il.addLayout(f)
         root.addWidget(self.img_box)
+
+        # Rules and motion ---------------------------------------------------------
+        self.motion_box, ml = panel(pad=12)
+        ml.addWidget(caps("Rules and motion"))
+        f = QFormLayout()
+        self.m_rules = QLineEdit()
+        self.m_rules.setPlaceholderText("0:00=FINAL|NULL=—  (this graphic only)")
+        self.m_rules.setToolTip("Replace shown values on this element only. Field rules (Data tab) also reach "
+                                ".txt and .xml; these do not.")
+        self.m_rules.editingFinished.connect(lambda: self._set("rules", self.m_rules.text().strip()))
+        f.addRow(caps("Rules"), self.m_rules)
+        self.m_combos = {}
+        for prop, cap, kinds in (("anim_in", "Appears", ("in",)), ("anim_out", "Disappears", ("out",)),
+                                 ("anim_change", "On change", ("emphasis", "in"))):
+            row = QHBoxLayout()
+            cb = QComboBox()
+            cb.setMinimumWidth(170)
+            cb.activated.connect(lambda _i, prop=prop, cb=cb: self._set(prop, cb.currentData() or ""))
+            tr = button("Try", "", lambda cb=cb: cb.currentData() and self.try_anim.emit(cb.currentData()))
+            row.addWidget(cb, 1)
+            row.addWidget(tr)
+            f.addRow(caps(cap), row)
+            self.m_combos[prop] = (cb, kinds)
+        ml.addLayout(f)
+        ml.addWidget(label("Appears and Disappears play when Show when, or a condition in Logic, shows or hides it. "
+                           "On change plays when its text or picture changes.", "small", muted=True, wrap=True))
+        ml.addWidget(button("Animations…", "", self.open_library.emit, tip="Make your own animations"))
+        root.addWidget(self.motion_box)
         root.addStretch(1)
+        self._lib = library()
+        self.set_animations(self._lib)
         self.show_board(None)
 
     # ----- loading ------------------------------------------------------------
@@ -800,9 +866,22 @@ class Inspector(QWidget):
         for ce in (self.t_color, self.x_fill, self.x_stroke, self.b_bg):
             ce.setValues(values)
 
+    def set_animations(self, lib) -> None:
+        self._lib = lib
+        for prop, (cb, kinds) in self.m_combos.items():
+            cur = cb.currentData()
+            cb.blockSignals(True)
+            cb.clear()
+            cb.addItem("None", "")
+            for name, a in lib.items():
+                if a.kind in kinds:
+                    cb.addItem(name if a.builtin else f"{name}  (custom)", name)
+            cb.setCurrentIndex(max(0, cb.findData(cur)))
+            cb.blockSignals(False)
+
     def show_board(self, board: Optional[Board]) -> None:
         self._loading = True
-        for w in (self.gen_box, self.text_box, self.box_box, self.img_box):
+        for w in (self.gen_box, self.text_box, self.box_box, self.img_box, self.motion_box):
             w.hide()
         self.board_box.setVisible(board is not None)
         self.title.setText("BOARD" if board else "")
@@ -858,6 +937,15 @@ class Inspector(QWidget):
         self.x_radius.setValue(e.radius)
         self.i_src.setText(e.src)
         self.i_contain.setChecked(e.contain)
+        self.motion_box.show()
+        self.m_rules.setText(e.rules)
+        for prop, (cb, _k) in self.m_combos.items():
+            val = getattr(e, prop)
+            i = cb.findData(val)
+            if i < 0 and val:
+                cb.addItem(f"{val} (missing)", val)
+                i = cb.count() - 1
+            cb.setCurrentIndex(max(0, i))
         self.t_missing.setText(("Unknown fields: " + ", ".join("{%s}" % k for k in missing) +
                                 ". Check the spelling or add them in Data.") if missing else "")
         self._loading = False
@@ -989,6 +1077,8 @@ class BuildTab(QWidget):
         self.inspector.edit.connect(self._inspector_edit)
         self.inspector.board_edit.connect(self._board_edit)
         self.inspector.browse_image.connect(self._browse_image)
+        self.inspector.try_anim.connect(self._try_anim)
+        self.inspector.open_library.connect(self._open_library)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(self.inspector)
@@ -1023,8 +1113,10 @@ class BuildTab(QWidget):
         session.structure.connect(self.rebuild_fields)
         session.snapshot.connect(self._on_snapshot)
         session.board_edited.connect(self._external_edit)
+        session.animations.connect(self._animations_changed)
         self.rebuild_boards()
         self.rebuild_fields()
+        self._animations_changed()
 
     # ----- helpers -------------------------------------------------------------
     @property
@@ -1228,6 +1320,25 @@ class BuildTab(QWidget):
             setattr(e, prop, value)
         self._commit(structural=prop in ("x", "y", "w", "h", "locked"))
 
+    def _lib(self):
+        return library(self.session.project.animations)
+
+    def _try_anim(self, name: str):
+        a = self._lib().get(name)
+        if a is None:
+            return
+        for e in self._selected():
+            self.canvas.play(e.id, a)
+
+    def _open_library(self):
+        from .animations_dialog import AnimationsDialog
+        dlg = AnimationsDialog(self.session, self)
+        dlg.exec()
+
+    def _animations_changed(self):
+        self.inspector.set_animations(self._lib())
+        self._update_inspector()
+
     def _browse_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Choose a picture", "",
                                               "Pictures (*.png *.jpg *.jpeg *.gif *.webp *.svg *.bmp)")
@@ -1395,9 +1506,10 @@ class BuildTab(QWidget):
     # ----- live values ------------------------------------------------------------
     def _on_snapshot(self, snap, changed):
         self.canvas.values = snap.values
+        self.canvas.fx = snap.fx
         if self.board is not None and not self.canvas.show_templates:
             keys = set(self.board.keys())
-            if changed & keys:
+            if changed & keys or "#fx" in changed:
                 self.canvas.scene().update()
 
     def _toggle_values(self, on: bool):
