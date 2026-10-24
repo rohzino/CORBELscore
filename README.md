@@ -29,7 +29,17 @@ Clocks keep time in milliseconds from the system clock, so they never drift and 
 
 ## Run it
 
-You need Python 3.10 or newer.
+On Windows, double-click **`TeleScore.bat`**. The first time, it sets up a private Python environment in `.venv` and installs PyQt6; after that it just starts TeleScore. You can also drag a `.tsproj` file onto it to open that project.
+
+| Command | What it does |
+|---|---|
+| `TeleScore.bat` | Run TeleScore |
+| `TeleScore.bat debug` | Run with a console window that shows errors |
+| `TeleScore.bat test` | Run every test; screenshots go to `test-screenshots\` |
+| `TeleScore.bat build` | Build `dist\TeleScore\TeleScore.exe` |
+| `TeleScore.bat update` | Reinstall the requirements |
+
+By hand, on any platform, you need Python 3.10 or newer:
 
 ```
 python -m pip install -r requirements.txt
