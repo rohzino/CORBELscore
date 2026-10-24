@@ -25,7 +25,7 @@ version = { attr = "telescore.__version__" }
 include = ["telescore*"]
 
 [tool.setuptools.package-data]
-telescore = ["assets/*", "assets/fonts/*"]
+telescore = ["assets/*", "assets/fonts/*", "outputs/overlay.js"]
 
 [tool.ruff]
 line-length = 120

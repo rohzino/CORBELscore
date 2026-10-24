@@ -8,7 +8,8 @@ here = os.path.abspath(".")
 a = Analysis(
     ["telescore/__main__.py"],
     pathex=[here],
-    datas=[("telescore/assets", "telescore/assets"), ("LICENSE", "."), ("docs/schema", "docs/schema")],
+    datas=[("telescore/assets", "telescore/assets"), ("telescore/outputs/overlay.js", "telescore/outputs"),
+           ("LICENSE", "."), ("docs/schema", "docs/schema")],
     hiddenimports=["PyQt6.QtMultimedia"],
     excludes=["tkinter", "numpy"],
     cipher=block_cipher,
