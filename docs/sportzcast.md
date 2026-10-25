@@ -25,7 +25,7 @@ Every key that arrives is listed with its current value. Nested JSON and XML are
 **Suggest bindings** knows these names:
 - from Sportzcast's base contract: `HomeScore`, `GuestScore`, `HomeTeamName`, `GuestTeamName`, `Clock` and `ClockStatus`;
 - common per-sport names: `Period`, `ShotClock`, `HomeFouls` and others;
-- football names: `Quarter`, `Down`, `ToGo`, `YardsToGo` and `Distance`;
+- football names: `Quarter`, `Down`, `ToGo`, `YardsToGo`, `Distance`, `PlayClock`, `HomePossession` and `GuestPossession`;
 - LiveXML names: `Hscore`, `Vscore`, `Htimeouts`, `Vtimeouts` and `down`.
 
 **Copy all keys** puts every key and its current value on the clipboard, which is the quickest way to see exactly what a bot sends.
@@ -34,7 +34,13 @@ Anything else can be matched by name, bound by hand, or turned into a new field 
 
 A choice field (quarter, half, down) follows live data whether the scoreboard sends a number or a name: `1` shows as `1st`, `5` as the fifth option (`OT`), and `OT`, `ot` or `Q2` match by name or by the number inside. Its buttons light up the live option. Text that matches no option is shown as it came. A counter shown as an ordinal (`2nd`) or padded (`07`) keeps that look when live.
 
-A clock bound to `Clock` shows the bot's clock text exactly. `clock.game.running` follows `ClockStatus` (`R` means running).
+A live clock shows the scoreboard's time in the field's own format, using the scoreboard's whole seconds exactly (`Clock`, e.g. `4:28`) and `FullClock` (`04:28.0`) for tenths.
+
+- **Tenths** show whenever the scoreboard is in tenths mode (`Clock` reads `28.4`, or `ClockMode` is `.`), and also when the field's **Tenths under** setting asks for them near the end. `clock.game.tenths` is `1` while tenths are showing, for graphics that change style in the last minute.
+- **Running** follows the clock's own status key when the bot sends one (`PlayClock` follows `PlayClockStatus`), otherwise `ClockStatus` (`R` means running).
+- Text that is not a time (`--:--`) is shown as it came.
+
+On/off fields show their own words when live (possession `>` becomes `●`). Text fields keep their capitals setting, and **Drop leading zeros** turns the bot's padded `06` into `6` (on for Distance in the Football template). A blank team name from the bot (it sends spaces) never wipes the name you typed.
 
 ## While live
 

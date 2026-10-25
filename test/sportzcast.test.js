@@ -240,3 +240,50 @@ test("suggest knows football names", () => {
   const m = suggest(["Quarter", "Down", "YardsToGo"], ["period", "down", "distance"]);
   assert.deepEqual(m, { period: "Quarter", down: "Down", distance: "YardsToGo" });
 });
+
+// A real football frame from a Sportzcast bot (bot 20), as "Copy all keys" shows it.
+const FOOTBALL = {
+  BallOn: "36", Clock: "4:28", ClockMinutesOnes: "4", ClockMinutesTens: "0", ClockMode: ":", ClockSecondOnes: "8", ClockSecondTens: "2",
+  ClockStatus: "R", ClockTenthsSecond: "0", Down: "2", FullClock: "04:28.0", GuestPossession: ">", GuestScore: "21", GuestTeamName: "",
+  GuestTimeouts: "3", HomePossession: " ", HomeScore: "15", HomeScoreQuarter1: "  ", HomeTeamName: "", HomeTimeouts: "4",
+  PlayClock: "25", PlayClockStatus: "S", Quarter: "4", QuarterOrdinal: "4th", ToGo: "06", ToGoOnes: "6", ToGoTens: "0", VendorSportId: "218",
+};
+
+test("football: a real bot frame fills the Football template", () => {
+  const p = PRESETS.Football();
+  const e = p.engine;
+  const map = suggest(Object.keys(FOOTBALL), [...e.fields.keys()]);
+  for (const [fk, sk] of Object.entries(map)) e.field(fk).source = sk;
+  assert.deepEqual(
+    Object.fromEntries(["period", "down", "distance", "clock.game", "clock.play", "possession.home", "possession.away", "home.timeouts", "away.timeouts"].map((k) => [k, map[k]])),
+    { period: "Quarter", down: "Down", distance: "ToGo", "clock.game": "Clock", "clock.play": "PlayClock", "possession.home": "HomePossession",
+      "possession.away": "GuestPossession", "home.timeouts": "HomeTimeouts", "away.timeouts": "GuestTimeouts" });
+  e.feed(FOOTBALL);
+  e.tick();
+  const v = e.snapshot().values;
+  assert.deepEqual([v["home.score"], v["away.score"], v.period, v.down, v.distance], ["15", "21", "4th", "2nd", "6"]);
+  assert.deepEqual([v["clock.game"], v["clock.game.running"], v["clock.play"], v["clock.play.running"]], ["4:28", "1", "25", "0"]);
+  assert.deepEqual([v["possession.home"], v["possession.away"]], ["", "●"]);
+  assert.deepEqual([v["home.timeouts"], v["away.timeouts"]], ["4", "3"]);
+  assert.deepEqual([v["home.name"], v["away.name"]], ["Home", "Away"], "blank names from the bot keep the typed ones");
+});
+
+test("football: tenths show when the scoreboard or the field asks for them", () => {
+  const p = PRESETS.Football();
+  const e = p.engine;
+  e.field("clock.game").source = "Clock";
+  const show = (d) => { e.feed(d); e.tick(); const s = e.snapshot().values; return [s["clock.game"], s["clock.game.tenths"]]; };
+  // Over a minute: the scoreboard's whole seconds, exactly.
+  assert.deepEqual(show({ Clock: "1:00", FullClock: "01:00.0", ClockMode: ":" }), ["1:00", "0"]);
+  // The scoreboard switches to tenths ("28.4", mode "."): so does TeleScore, even with the field set to never.
+  assert.equal(e.field("clock.game").clock.tenths_under_ms, 0);
+  assert.deepEqual(show({ Clock: "28.4", FullClock: "00:28.4", ClockMode: "." }), ["28.4", "1"]);
+  assert.deepEqual(show({ Clock: "9.0", FullClock: "", ClockMode: "." }), ["9.0", "1"]);
+  // A board that stays in m:ss shows whole seconds unless the field wants tenths under a minute.
+  assert.deepEqual(show({ Clock: "0:28", FullClock: "00:28.4", ClockMode: ":" }), ["0:28", "0"]);
+  e.field("clock.game").clock.tenths_under_ms = 60_000;
+  assert.deepEqual(show({ Clock: "0:28", FullClock: "00:28.4", ClockMode: ":" }), ["28.4", "1"]);
+  assert.deepEqual(show({ Clock: "4:28", FullClock: "04:27.6", ClockMode: ":" }), ["4:28", "0"], "never rounds away from the board's own seconds");
+  // Text that is not a time is shown as it came.
+  assert.deepEqual(show({ Clock: "--:--" }).slice(0, 1), ["--:--"]);
+});

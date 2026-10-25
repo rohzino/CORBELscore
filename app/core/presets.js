@@ -173,7 +173,7 @@ function football() {
     new ClockField("clock.play", { label: "Play clock", clock: new Clock({ countdown: true, initial_ms: 40_000, fmt: "s" }) }),
     new ChoiceField("period", { label: "Quarter", options: ["1st", "2nd", "3rd", "4th", "OT"] }),
     new ChoiceField("down", { label: "Down", options: ["1st", "2nd", "3rd", "4th"] }),
-    new TextField("distance", { label: "Distance", value: "10" }),
+    new TextField("distance", { label: "Distance", value: "10", trim_zeros: true }),
     new CounterField("away.timeouts", { label: "Away time-outs", value: 3, default: 3, maximum: 3 }),
     new CounterField("home.timeouts", { label: "Home time-outs", value: 3, default: 3, maximum: 3 }),
     new ToggleField("possession.home", { label: "Home ball", on_text: "●" }), new ToggleField("possession.away", { label: "Away ball", on_text: "●" })];

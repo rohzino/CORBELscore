@@ -105,13 +105,18 @@ export class TextField extends Field {
     this.value = String(o.value ?? "");
     this.default = o.default === undefined || o.default === null ? this.value : String(o.default);
     this.uppercase = !!o.uppercase;
+    this.trim_zeros = !!o.trim_zeros;   // "06" shows as "6" (scoreboards pad digits)
   }
   set(v) { this.value = v === null || v === undefined ? "" : String(v); }
-  display() { return this.uppercase ? this.value.toUpperCase() : this.value; }
+  display() {
+    let v = this.value;
+    if (this.trim_zeros && /^\s*0+\d+\s*$/.test(v)) v = String(parseInt(v, 10));
+    return this.uppercase ? v.toUpperCase() : v;
+  }
   raw() { return this.value; }
   restore(s) { this.value = String(s); }
   reset() { this.value = this.default; }
-  toDict() { return { ...super.toDict(), value: this.value, default: this.default, uppercase: this.uppercase }; }
+  toDict() { return { ...super.toDict(), value: this.value, default: this.default, uppercase: this.uppercase, trim_zeros: this.trim_zeros }; }
 }
 
 export class ToggleField extends Field {
@@ -191,7 +196,10 @@ export class ClockField extends Field {
   }
   display(t) { return this.clock.display(t); }
   raw(t) { return this.clock.value(t); }
-  extra() { return { running: this.clock.running ? "1" : "0" }; }
+  extra(t) {
+    const c = this.clock, v = c.value(t);
+    return { running: c.running ? "1" : "0", tenths: c.countdown && c.tenths_under_ms && v > 0 && v < c.tenths_under_ms ? "1" : "0" };
+  }
   state(t) { return this.clock.state(t); }
   restore(s, t) { this.clock.restore(s, t); }
   reset() { this.clock.reset(); }

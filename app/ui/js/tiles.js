@@ -153,7 +153,8 @@ function fieldTile(el, f, t, snap) {
     box.addEventListener("blur", () => { if (box.value !== (box.dataset.v ?? "")) send(); });
     el.append(h("div.t-fill", h("div.t-set", box, button("Clear", () => { box.value = ""; send(); }))));
     return { update: (s) => {
-      const v = s?.raw?.[f.key] ?? "";
+      // Live: what the scoreboard sends, as the field shows it ("06" → "6"); otherwise the typed value.
+      const v = (s?.live?.includes(f.key) ? s?.base?.[f.key] : s?.raw?.[f.key]) ?? "";
       if (document.activeElement !== box) box.value = v;
       box.dataset.v = v;
       refreshChip(s);

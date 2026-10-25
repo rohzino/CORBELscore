@@ -126,6 +126,7 @@ export function fieldForm(f, ctx) {
   } else if (f.type === "text") {
     row("Reset to", textInput(f.default, (v) => upd({ default: v }), { k: `f-def-${f.key}` }));
     rows.push(h("div.full", check("Show in capitals", f.uppercase, (v) => upd({ uppercase: v }), { k: `f-up-${f.key}` })));
+    rows.push(h("div.full", check("Drop leading zeros from numbers (06 shows as 6)", f.trim_zeros, (v) => upd({ trim_zeros: v }), { k: `f-trim-${f.key}` })));
   } else if (f.type === "toggle") {
     row("On shows", textInput(f.on_text, (v) => upd({ on_text: v }), { k: `f-on-${f.key}` }), "The text that goes out while it is on, e.g. BONUS.");
     row("Off shows", textInput(f.off_text, (v) => upd({ off_text: v }), { k: `f-off-${f.key}`, placeholder: "nothing" }));
@@ -148,7 +149,7 @@ export function fieldForm(f, ctx) {
       (v) => upd({ fmt: v }), { k: `f-fmt-${f.key}` }));
     if (f.countdown) {
       row("Tenths under", select([[0, "never"], [60_000, "1:00"], [10_000, "0:10"], [5_000, "0:05"]], f.tenths_under_ms, (v) => upd({ tenths_under_ms: Number(v) }), { k: `f-ten-${f.key}` }),
-        "Switch to tenths of a second near the end, like an arena clock.");
+        "Switch to tenths of a second near the end, like an arena clock. With live data, tenths also show whenever the scoreboard shows them.");
       rows.push(h("div.full", check("Show nothing at 0:00", f.blank_at_zero, (v) => upd({ blank_at_zero: v }), { k: `f-blank-${f.key}` })));
     }
     row("Buzzer", h("div.row", textInput(f.buzzer || "", (v) => upd({ buzzer: v.trim() }), { k: `f-buzz-${f.key}`, placeholder: "No sound" }),

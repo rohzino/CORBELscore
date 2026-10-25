@@ -71,5 +71,5 @@ The audit covers JumpShot-Interactive/TeleScore at commit `7a83b91` (9 February 
 | 38 | Ops | `setup.py` crashed on non-Windows systems because `build_exe_options` was undefined. | A PyInstaller spec builds on all three. |
 | 39 | Ops | The README's "build" step just ran the app. | The README covers run, test and build separately. |
 | 40 | Code | Leftover "GameMaster" naming, `print()` debugging, a bare `except:` in the start menu and a dead `extra/OCR.py`. | Removed. |
-| 41 | Code | Tests barely covered behaviour, and one test body was commented out. | 96 tests: engine, logic, live data, files, web server, layout, 1.x import, and the studio window in a real browser. |
+| 41 | Code | Tests barely covered behaviour, and one test body was commented out. | 98 tests: engine, logic, live data, files, web server, layout, 1.x import, and the studio window in a real browser. |
 | 42 | Ops | `requests` was used without timeouts (update check). | Removed; there is no network dependency. |

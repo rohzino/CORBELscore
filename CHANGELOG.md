@@ -12,6 +12,10 @@
 - A blank project opens straight into Edit mode with the Library showing.
 - **Live data connects only when you press Connect**, never on its own when a project opens or a setting changes. While connected, a changed setting shows "Reconnect to use them"; Disconnect stops it.
 - **Choice fields follow live data.** Quarter, half and down now update from a scoreboard that sends numbers (`1` → `1st`, `5` → `OT`) as well as names, and their buttons light up the live option. Before, a number picked the wrong option or showed as a bare number. Ordinal and padded counters keep their look when live.
+- **Tenth-second mode from live data.** Live clocks show tenths whenever the scoreboard does (`28.4`, or `ClockMode` `.`), and when the field's Tenths under setting asks, using `FullClock` for the tenths. Whole seconds always match the scoreboard. New `<clock>.tenths` value for graphics.
+- Live clocks use the field's own format; the play clock follows `PlayClockStatus`.
+- Live on/off fields show their own words (possession `>` → `●`); live text keeps capitals; new **Drop leading zeros** option for text (`06` → `6`), on for Distance in the Football template. Blank team names from the bot keep the typed names.
+- Checked against a real football frame from a Sportzcast bot.
 - Suggest bindings knows more football names (`YardsToGo`, `YardsToGain`, `DownNumber`, `Qtr`). **Copy all keys** copies what a source sends.
 - Status updates and arriving data no longer close a drop-down or interrupt typing in a box. Panels refresh once you leave the box.
 - Design undo restores layout and design only; it never rewinds the game.

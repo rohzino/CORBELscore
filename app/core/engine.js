@@ -6,7 +6,7 @@
 import { now } from "./clock.js";
 import { ChoiceField, ClockField, CounterField, ImageField, PenaltyField, TextField, ToggleField, validKey } from "./fields.js";
 import { Logic, applyRules } from "./logic.js";
-import { parseTime, TimeParseError } from "./timefmt.js";
+import { formatMs, parseTime, TimeParseError } from "./timefmt.js";
 
 // Lets whoever submitted an action withdraw it until it starts, so a remote
 // caller that gave up waiting is never surprised by a late score.
@@ -90,6 +90,27 @@ export function liveChoiceIndex(options, text) {
   i = options.findIndex((o) => (/^\D*(\d+)/.exec(o) || [])[1] === String(n));
   if (i >= 0) return i;
   return n >= 1 && n <= options.length ? n - 1 : -1;
+}
+
+// A live clock shown the way its field shows time. The scoreboard's own text
+// ("4:28") gives whole seconds exactly; "Full<key>" ("04:28.0") adds tenths.
+// Tenths show when the field asks for them near the end, and whenever the
+// scoreboard itself is in tenths mode ("28.4", or <key>Mode = ".").
+function liveClock(f, src, sources) {
+  let ms;
+  try { ms = parseTime(src); } catch { return null; }
+  let full = null;
+  const fullText = sources[`Full${f.source}`];
+  if (fullText !== undefined && String(fullText).trim()) { try { full = parseTime(fullText); } catch { /* use the plain text */ } }
+  const precise = full ?? ms;
+  const c = f.clock;
+  const s = String(src).trim();
+  const boardTenths = (s.includes(".") && !s.includes(":")) || String(sources[`${f.source}Mode`] ?? "").trim() === ".";
+  if (c.countdown && c.blank_at_zero && precise <= 0) return { text: "", ms: precise };
+  if (boardTenths || (c.countdown && c.tenths_under_ms && precise > 0 && precise < c.tenths_under_ms)) {
+    return { text: formatMs(precise, c.tenths_fmt || "s.t", true), ms: precise, tenths: true };
+  }
+  return { text: formatMs(ms, c.fmt, c.countdown), ms: precise, tenths: false };
 }
 
 export class Engine {
@@ -418,9 +439,11 @@ export class Engine {
     const values = {}, base = {}, raw = {}, types = {}, labels = {};
     const live = new Set();
     for (const [k, f] of this.fields) {
-      const src = this._sourceText(f);
+      let src = this._sourceText(f);
       let b;
       let extra = f.extra(t);
+      // A blank name from the scoreboard (it sends spaces) never wipes the one typed in.
+      if (src !== null && f instanceof TextField && !String(src).trim() && String(f.value).trim()) src = null;
       if (src !== null) {
         live.add(k);
         b = src;
@@ -433,12 +456,22 @@ export class Engine {
           const view = Object.create(f);
           view.value = raw[k];
           b = view.display(t);
+        } else if (f instanceof ToggleField || f instanceof TextField) {
+          // On/off shows its own words ("●" for possession), text its capitals and trimmed zeros.
+          const view = Object.create(f);
+          view.value = f instanceof ToggleField ? raw[k] : String(src);
+          b = view.display(t);
+        } else if (f instanceof ClockField) {
+          const lc = liveClock(f, src, this.sources);
+          if (lc) { b = lc.text; raw[k] = lc.ms; extra = { ...extra, tenths: lc.tenths ? "1" : "0" }; }
         }
       } else { b = f.display(t); raw[k] = f.raw(t); }
       base[k] = b;
       values[k] = this._pipeline(f, b);
       if (src !== null && f instanceof ClockField) {
-        const status = this.sources[f.source_status || "ClockStatus"];
+        // PlayClock follows PlayClockStatus; anything without its own status follows ClockStatus.
+        const own = `${f.source}Status`;
+        const status = this.sources[f.source_status || (Object.hasOwn(this.sources, own) ? own : "ClockStatus")];
         if (status !== undefined) extra = { ...extra, running: status.trim().toUpperCase() === "R" ? "1" : "0" };
       }
       for (const [sub, text] of Object.entries(extra)) values[`${k}.${sub}`] = text;
