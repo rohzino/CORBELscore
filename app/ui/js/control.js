@@ -102,7 +102,7 @@ export function mountControl(root) {
       { label: "Move right", disabled: store.project.layout.pages.at(-1).id === pg.id, run: () => movePage(pg.id, 1) },
       "-",
       { label: "Delete page", disabled: store.project.layout.pages.length < 2, run: async () => {
-        if (pg.tiles.length && !(await confirmDialog("Delete page", `Delete “${pg.name}” and its ${pg.tiles.length} controls? Fields and buttons stay in the project.`, "Delete", "danger"))) return;
+        if (pg.tiles.length && !(await confirmDialog("Delete page", `Delete “${pg.name}” and its ${pg.tiles.length} controls? Fields and shortcuts stay in the project.`, "Delete", "danger"))) return;
         const L = structuredClone(store.project.layout);
         L.pages = L.pages.filter((x) => x.id !== pg.id);
         attempt(() => edit({ op: "layout.put", layout: L }, "Delete page"));
@@ -161,7 +161,7 @@ export function mountControl(root) {
     }
     if (!pg.tiles.length) {
       layout.append(h("div.layout-empty", h("div", editing()
-        ? [h("p", h("b", "This page is empty.")), h("p.hint", "Drag fields and buttons here from the Library on the left, or select one and press “Add to page”.")]
+        ? [h("p", h("b", "This page is empty.")), h("p.hint", "Drag fields and shortcuts here from the Library on the left, or select one and press “Add to page”.")]
         : [h("p", h("b", "Nothing to operate on this page yet.")), h("p.hint", "Switch to Edit to add controls.")])));
     }
     fitHeight();

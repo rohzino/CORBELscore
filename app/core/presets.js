@@ -109,8 +109,8 @@ function finish(name, sport, fields, boards, buttons) {
   if (preview) {
     // A live picture of the scorebug, where the Game column leaves room.
     const tiles = layout.pages[0].tiles;
-    const colBottom = (a, b) => tiles.filter((x) => x.kind !== "button" && x.text !== "Actions" && overlapsCols(x, a, b)).reduce((m, x) => Math.max(m, x.y + x.h), 1);
-    const actions = tiles.find((x) => x.kind === "heading" && x.text === "Actions");
+    const colBottom = (a, b) => tiles.filter((x) => x.kind !== "button" && x.text !== "Shortcuts" && overlapsCols(x, a, b)).reduce((m, x) => Math.max(m, x.y + x.h), 1);
+    const actions = tiles.find((x) => x.kind === "heading" && x.text === "Shortcuts");
     const y = colBottom(8, 16);
     if (!actions || actions.y - y >= 4) tiles.push({ id: `pv${preview.id}`, kind: "preview", board: preview.id, x: 8, y, w: 8, h: Math.min(5, (actions?.y ?? y + 5) - y) });
   }

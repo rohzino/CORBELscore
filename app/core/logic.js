@@ -27,7 +27,7 @@ export const ELEMENT_ACTIONS = {
   show: "Show", show_once: "Show once", hide: "Hide", color: "Change colour", fill: "Change fill",
   font: "Change font", image: "Alternate picture", rule: "Conditional rule", animate: "Animate",
 };
-export const FIELD_ACTIONS = { rule: "Conditional rule", set: "Set value", pulse: "Pulse on", action: "Run action" };
+export const FIELD_ACTIONS = { rule: "Conditional rule", set: "Set value", pulse: "Pulse on", action: "Run a shortcut" };
 
 // ----- rules -------------------------------------------------------------------
 

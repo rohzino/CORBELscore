@@ -14,13 +14,13 @@ TeleScore has two tabs.
 
 - **Locked** (for the game): your controls fill the window and every button is live. Rows stretch so a page fits the screen without scrolling.
 - **Edit** (for setting up): the controls become a layout you arrange, between two side panels.
-  - Left, the **Library**: Fields, Buttons, Live data and Outputs. Drag a field or button onto the page to get its control.
+  - Left, the **Library**: Fields, Shortcuts, Live data and Outputs. Drag a field or shortcut onto the page to get its control.
   - Middle, the **layout**: a 24-column grid. Drag to move, drag a corner to resize, or use the arrow keys (Shift + arrows resizes). Other controls move out of the way.
-  - Right, **Properties** of whatever is selected: the control's size, the field's rules, live key and override, a button's steps and shortcut.
+  - Right, **Properties** of whatever is selected: the control's size, the field's rules, live key and override, a shortcut's steps and key.
 
   Controls do not fire while you edit, so nothing goes to air by accident; shortcuts still work. An amber EDITING band and a dotted grid make the mode impossible to miss. Ctrl+Z undoes layout and design changes but never rewinds a score or a clock.
 
-Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Companion: right-click a page tab to rename, move or delete it. Each field type has its own control: clocks with Start/Stop, ±1 s and ±1 min; counters with their steps; choices as a row of buttons; on/off, text, penalties and pictures. Your own buttons run several steps as one undo step ("Next quarter: next period, reset game clock, reset shot clock") and can have a keyboard shortcut. A button does not need to be on a page; its shortcut works anyway.
+Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Companion: right-click a page tab to rename, move or delete it. Each field type has its own control: clocks with Start/Stop, ±1 s and ±1 min; counters with their steps; choices as a row of buttons; on/off, text, penalties and pictures. **Shortcuts** are your own actions: each runs several steps as one undo step ("Next quarter: next period, reset game clock, reset shot clock"). Put one on a page as a button, give it a key, or both; a shortcut that is on no page still works by its key.
 
 **View** is what goes out, in two sections:
 

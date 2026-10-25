@@ -434,14 +434,14 @@ export function mountDesigner(root) {
     else if (a === "color" || a === "fill") argCtl = colorInput(c.arg ?? "", (v) => put({ arg: v }), { k: "c-arg" });
     else if (a === "animate") argCtl = select(animOpts, c.arg, (v) => put({ arg: v }), { k: "c-arg" });
     else if (a === "pulse") argCtl = h("div.row", textInput(c.arg ?? "3000", (v) => put({ arg: v.trim() }), { k: "c-arg" }), h("span.hint", "ms"));
-    else if (a === "action") argCtl = select([["", "— choose a button —"], ...p.buttons.map((b) => [b.id, b.label])], "", (v) => { const b = p.buttons.find((x) => x.id === v); if (b) put({ run: b.action, arg: b.label }); }, { k: "c-run" });
+    else if (a === "action") argCtl = select([["", "— choose a shortcut —"], ...p.buttons.map((b) => [b.id, b.label])], "", (v) => { const b = p.buttons.find((x) => x.id === v); if (b) put({ run: b.action, arg: b.label }); }, { k: "c-run" });
     else argCtl = textInput(c.arg ?? "", (v) => put({ arg: v }), { k: "c-arg", placeholder: a === "rule" ? "1=Joe|2=John" : a === "image" ? "C:\\pictures\\alt.png" : a === "font" ? "Archivo" : "value" });
     const now = snap ? (NO_VALUE_OPS.includes(c.op) && c.op === "changes" ? null : (() => { try { return compareValue(c.op, snap.values[c.principal] ?? "", c.value, null); } catch { return null; } })()) : null;
     const HELP = { show: "Show the element. For a time, or until another condition hides it.", show_once: "Show it only when the condition first becomes true.",
       hide: "Hide the element. For a time, or until another condition shows it.", color: "Text colour for text, fill for a box.", fill: "Background fill.",
       font: "Font family for text.", image: "Swap the picture (an alternate picture).", rule: "Rules that apply only while the condition holds. A plain rule still wins.",
       animate: "Play an animation. An 'out' animation hides the element at its end.", set: "Set the field. This is not an undo step.",
-      pulse: "Switch an on/off field on for a while, then off. Good for 'flash this graphic' flags in XML.", action: "Run what a button does, e.g. 'Next period' when the clock reaches 0:00." };
+      pulse: "Switch an on/off field on for a while, then off. Good for 'flash this graphic' flags in XML.", action: "Run a shortcut, e.g. 'Next period' when the clock reaches 0:00." };
     return [
       h("div.row", h("div.section-title", "Condition"), h("span.spacer"), now === null ? null : chip(now ? "True now" : "False now", now ? "accent" : "muted")),
       h("div.panel", h("h3", "If"), h("div.form",

@@ -5,10 +5,11 @@
 ### Changed
 - **Rebuilt on Electron and JavaScript.** One runtime for the engine, outputs, live data and window; no Python, PyQt or Node to install. `TeleScore.bat` downloads Electron 44.9.3 from GitHub on first run, checks its SHA-256 and runs it from a `runtime` folder. `TeleScore.bat build` makes a portable `TeleScore.exe` folder.
 - **Two tabs instead of three.**
-  - **Control**, with an Edit / Locked switch. Locked runs the game with the controls full width. Edit adds the Library (Fields, Buttons, Live data, Outputs) on the left and Properties on the right, around a layout you arrange.
+  - **Control**, with an Edit / Locked switch. Locked runs the game with the controls full width. Edit adds the Library (Fields, Shortcuts, Live data, Outputs) on the left and Properties on the right, around a layout you arrange.
   - **View**: Graphics (the designer, with Logic and Animations beside the canvas) and Live view.
 - **Your own control layout.** Controls sit on a 24-column grid, on pages you name (Game, Teams, …). Drag from the Library, move, resize, use the keyboard; other controls move aside. Templates and older projects get a sensible layout to start from.
-- **Buttons belong to the project**, not to panels. Place them on any page or leave them as shortcuts only.
+- **Buttons are now Shortcuts** and belong to the project, not to panels. Place one on any page as a button, give it a key, or both.
+- A blank project opens straight into Edit mode with the Library showing.
 - Design undo restores layout and design only; it never rewinds the game.
 - Project format 3. Version 2 and 1.x files are converted and saved under a new name.
 

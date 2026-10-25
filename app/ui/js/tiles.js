@@ -56,7 +56,7 @@ export function renderTile(t, { project, snap }) {
     }
   } else if (t.kind === "button") {
     const b = project.buttons.find((x) => x.id === t.button);
-    if (!b) { el.classList.add("missing"); el.append(h("span.small", "That button was deleted.")); }
+    if (!b) { el.classList.add("missing"); el.append(h("span.small", "That shortcut was deleted.")); }
     else {
       const pb = h(`button.btn.pbtn${b.role && b.role !== "neutral" ? ".btn-" + b.role : ""}`, { type: "button", "data-button": b.id,
         title: b.hotkey ? `${b.label} · shortcut ${b.hotkey}` : b.label, onclick: () => run(b.action) },

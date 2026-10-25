@@ -28,7 +28,7 @@ Drag a field from the Library onto the page; drag a control to move it; drag its
 
 ## Pages, like a button deck
 
-Controls live on pages (Game, Teams, …), the model operators already know from Stream Deck and Bitfocus Companion. Setup fields (team names, colours, logos) start on their own page so the game page holds only what changes during play. A button does not need a place on any page: its shortcut always works.
+Controls live on pages (Game, Teams, …), the model operators already know from Stream Deck and Bitfocus Companion. Setup fields (team names, colours, logos) start on their own page so the game page holds only what changes during play. A shortcut does not need a place on any page: its key always works.
 
 ## Sized for game pressure
 

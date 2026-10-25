@@ -55,6 +55,19 @@ function lights(st) {
     light("Web", web, web === "ok" ? `Browser sources at ${st.web.url} · ${st.web.clients} connected` : st.web?.error || "The web server is off"));
 }
 
+// A new or opened project starts fresh: its first page, the right mode, Control.
+// The window may already have drawn it (the service announces it before the
+// request returns), so draw it again with these settings.
+function freshView(mode) {
+  Object.assign(ui, { page: null, sel: null, board: null, mode, tab: "control" });
+  remember();
+  mounted?.unmount?.();
+  mounted = null;
+  clear(main);
+  renderHead();
+  renderMain();
+}
+
 function setTab(id) {
   ui.tab = id;
   remember();
@@ -92,7 +105,7 @@ function startPage(el) {
           button("Discard", () => attempt(async () => { await call("/api/recovery", { restore: false }); store.state.recovery = null; renderStart(); }))))
         : null,
       h("div.section-title", "New project"),
-      h("p.hint", "Start from a sport. Every field, control, button and graphic can be changed afterwards."),
+      h("p.hint", "Start from a sport. Every field, control, shortcut and graphic can be changed afterwards."),
       templateCards((name) => newProject(name))),
     h("section",
       h("div.section-title", "Open"),
@@ -121,7 +134,7 @@ async function guarded(op, body) {
 
 async function newProject(preset) {
   const r = await guarded("new", { preset });
-  if (r) { ui.page = null; ui.sel = null; ui.board = null; ui.mode = preset === "Blank project" ? "edit" : "locked"; ui.tab = "control"; remember(); }
+  if (r) freshView(preset === "Blank project" ? "edit" : "locked");
 }
 
 function newDialog() {
@@ -134,7 +147,7 @@ function newDialog() {
 async function openProject(path) {
   const r = await guarded("open", { path });
   if (r && !r.cancelled) {
-    ui.page = null; ui.sel = null; ui.board = null; ui.mode = "locked"; ui.tab = "control"; remember();
+    freshView("locked");
     if (r.imported && r.notes?.length) {
       dialog("Converted", h("div.col", h("p.hint", "This project came from an older TeleScore. Save it as a new .tsproj file; the original stays as it was."),
         h("ul", { style: { margin: 0, paddingLeft: "18px" } }, r.notes.map((n) => h("li.small", n)))));

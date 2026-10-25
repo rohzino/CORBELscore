@@ -12,7 +12,7 @@ Every field's published value is worked out in this order. The first step that a
 | 2. **Live key** | Control → Edit → select the field → Live key, or Control → Edit → Live data → bind | the bot's `HomeScore` |
 | 3. **Rules** | Control → Edit → select the field → Rules | `0:00=FINAL\|2:00=Two-minute warning` |
 | 4. **Conditional rules** | View → Graphics → Logic, a condition whose action is "Conditional rule" | `1=Joe\|2=John` while `half` is `T` |
-| 5. The field's own value | Controls, buttons, remote control | `3` |
+| 5. The field's own value | Controls, shortcuts, remote control | `3` |
 
 All outputs get the result: text files, the XML profiles, `state.json`, browser sources, projector windows and PNGs. The field list in Control → Edit → Fields shows the published result next to each key, and `state.json` carries both.
 
@@ -73,7 +73,7 @@ A condition is checked when its field's value changes, and once when the project
 | Conditional rule | The rules apply to the field while the condition holds. |
 | Set value | Sets the field. This is not an undo step. |
 | Pulse on | Switches an on/off field on for a time, then off. Use it for "flash the goal graphic" flags that a CG system reads from XML. |
-| Run action | Runs a button's action, e.g. "Next period" when the clock reaches 0:00. |
+| Run a shortcut | Runs a shortcut's steps, e.g. "Next period" when the clock reaches 0:00. |
 
 Every condition can also have a **finish**: N ms later, run another action. Examples are `hide`, `show`, `animate:<name>`, or `set:<value>` for fields. SportzSuite's timeout swap is built this way: tween out, then 4000 ms later tween back in.
 

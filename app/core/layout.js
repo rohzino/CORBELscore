@@ -128,7 +128,7 @@ function columns(fields, buttons) {
   }
   if (buttons.length) {
     const top = bottom(tiles) + (tiles.length ? 1 : 0);
-    tiles.push(makeTile({ kind: "heading", text: "Actions", x: 0, y: top, w: 24, h: 1 }));
+    tiles.push(makeTile({ kind: "heading", text: "Shortcuts", x: 0, y: top, w: 24, h: 1 }));
     buttons.forEach((b, i) => tiles.push(makeTile({ kind: "button", button: b.id, x: (i % 8) * 3, y: top + 1 + Math.floor(i / 8) * 2, w: 3, h: 2 })));
   }
   return settle(tiles);

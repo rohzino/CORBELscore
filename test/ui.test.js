@@ -66,6 +66,15 @@ test("Edit mode shows the library and the editing band; design undo keeps the sc
   await page.locator("button.lock").click();
 });
 
+test("a blank project opens straight into Edit with the Library", { skip }, async () => {
+  app.dirty = false;
+  app._closeProject();
+  await page.getByRole("button", { name: /Blank project/ }).first().click();
+  await page.locator(".side-tabs").getByText("Shortcuts").waitFor();
+  await page.getByText(/^editing$/i).first().waitFor();
+  assert.equal(await page.locator("button.edit").getAttribute("aria-pressed"), "true");
+});
+
 test("no errors in the page", { skip }, () => {
   assert.deepEqual(errors, []);
 });

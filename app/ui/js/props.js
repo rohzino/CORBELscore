@@ -27,7 +27,7 @@ function body(ctx) {
   }
   if (sel?.kind === "button") {
     const b = p.buttons.find((x) => x.id === sel.id);
-    if (b) return [h("div.section-title", "Button"), addToPage(ctx, { kind: "button", button: b.id }), buttonForm(b, ctx)];
+    if (b) return [h("div.section-title", "Shortcut"), addToPage(ctx, { kind: "button", button: b.id }), buttonForm(b, ctx)];
   }
   return pageProps(ctx);
 }
@@ -52,7 +52,7 @@ function pageProps(ctx) {
     h("div.form", h("label", "Name"), textInput(pg.name, rename, { k: "page-name" })),
     h("p.hint", { style: { marginTop: "12px" } }, `${pg.tiles.length} controls on this page.`),
     h("div.panel", h("h3", "How to arrange"), h("ul.hint", { style: { margin: 0, paddingLeft: "18px" } },
-      h("li", "Drag a field or button from the Library onto the grid."),
+      h("li", "Drag a field or shortcut from the Library onto the grid."),
       h("li", "Click a control to select it. Drag it to move; drag its corner to resize."),
       h("li", "Arrow keys move the selected control; Shift + arrows resize it. Delete removes it from the page."),
       h("li", "Right-click a page tab to rename, move or delete it."),
@@ -82,7 +82,7 @@ function tileProps(t, ctx) {
   } else if (t.kind === "button") {
     const b = p.buttons.find((x) => x.id === t.button);
     out.push(h("div.section-title", "Control"), size, h("div.row", { style: { margin: "10px 0 16px" } }, remove));
-    if (b) out.push(h("div.section-title", "Button"), buttonForm(b, ctx));
+    if (b) out.push(h("div.section-title", "Shortcut"), buttonForm(b, ctx));
   } else if (t.kind === "heading") {
     out.push(h("div.section-title", "Heading"), h("div.form", h("label", "Text"), textInput(t.text, (v) => setTile({ text: v }), { k: "tile-text" })), size,
       h("div.row", { style: { marginTop: "10px" } }, remove));
@@ -109,14 +109,14 @@ export function fieldForm(f, ctx) {
     el.classList.remove("error");
     const r = await attempt(() => edit({ op: "field.rename", key: f.key, to: v }, `Rename ${f.key}`));
     if (r && ui.sel?.kind === "field") ui.sel = { kind: "field", id: v };
-  }, { k: `f-key-${f.key}`, cls: "mono" }), "Used in file names, XML and graphics. Renaming updates every graphic, button and condition.");
+  }, { k: `f-key-${f.key}`, cls: "mono" }), "Used in file names, XML and graphics. Renaming updates every graphic, shortcut and condition.");
 
   if (f.type === "counter") {
     row("Value", numberInput(store.snapshot?.raw?.[f.key] ?? f.value, (v) => act({ do: "set", field: f.key, value: v }).catch((e) => toast(e.message, true)), { k: `f-val-${f.key}` }));
     row("Reset to", numberInput(f.default, (v) => upd({ default: v }), { k: `f-def-${f.key}` }));
     row("Lowest", textInput(f.minimum ?? "", (v) => upd({ minimum: v.trim() === "" ? null : Number(v) }), { k: `f-min-${f.key}`, placeholder: "no limit" }));
     row("Highest", textInput(f.maximum ?? "", (v) => upd({ maximum: v.trim() === "" ? null : Number(v) }), { k: `f-max-${f.key}`, placeholder: "no limit" }));
-    row("Buttons", textInput((f.steps || [1]).join(", "), (v) => {
+    row("Steps", textInput((f.steps || [1]).join(", "), (v) => {
       const steps = v.split(/[ ,]+/).map(Number).filter((n) => Number.isInteger(n) && n !== 0);
       upd({ steps: steps.length ? steps : [1] });
     }, { k: `f-steps-${f.key}`, placeholder: "1, 2, 3" }), "The + buttons on its control, e.g. 1, 2, 3 for basketball.");
@@ -177,7 +177,7 @@ export function fieldForm(f, ctx) {
       { role: f.override_on ? "user" : "", title: "While on, every output shows the override text instead of the value" })));
 
   const refs = h("div.hint", "…");
-  call("/api/references", { key: f.key }).then((r) => refs.replaceChildren(r.refs.length ? h("ul", { style: { margin: 0, paddingLeft: "18px" } }, r.refs.map((x) => h("li", x))) : "Not used by any graphic, button or condition yet.")).catch(() => {});
+  call("/api/references", { key: f.key }).then((r) => refs.replaceChildren(r.refs.length ? h("ul", { style: { margin: 0, paddingLeft: "18px" } }, r.refs.map((x) => h("li", x))) : "Not used by any graphic, shortcut or condition yet.")).catch(() => {});
   return [
     h("div.form", ...rows),
     h("div.section-title", { style: { marginTop: "14px" } }, "Live data, rules, override"),
@@ -260,9 +260,9 @@ export function buttonForm(b, ctx) {
 
   return [
     h("div.form",
-      h("label", "Label"), textInput(b.label, (v) => put({ label: v.trim() || "Button" }), { k: `b-label-${b.id}` }),
+      h("label", "Label"), textInput(b.label, (v) => put({ label: v.trim() || "Shortcut" }), { k: `b-label-${b.id}` }),
       h("label", "Colour"), select(Object.entries(ROLES), b.role, (v) => put({ role: v }), { k: `b-role-${b.id}` }),
-      h("label", "Shortcut"), h("div.row", keyBox, button("Clear", () => put({ hotkey: "" }, "Clear shortcut"), { disabled: !b.hotkey }))),
+      h("label", "Key"), h("div.row", keyBox, button("Clear", () => put({ hotkey: "" }, "Clear key"), { disabled: !b.hotkey }))),
     h("p.hint", clash.length ? h("span", { style: { color: "var(--alert-text)" } }, `Also used by ${clash.join(", ")}. Only the first one runs.`)
       : b.hotkey ? (isGlobalSafe(b.hotkey) ? "Works while typing in a box too." : "Works anywhere in TeleScore except while typing in a box.") : "Click the box and press a key, e.g. Space or Ctrl+1."),
     h("div.section-title", { style: { marginTop: "10px" } }, "Steps · run in order, undone together"),
@@ -270,10 +270,10 @@ export function buttonForm(b, ctx) {
     h("div.row", { style: { marginTop: "8px" } },
       button("Add step", () => setSteps([...steps, { do: "add", field: p.fields.find((f) => ["counter", "clock", "choice"].includes(f.type))?.key, amount: 1 }])),
       h("span.spacer"),
-      button("Try it", () => act(b.action).then(() => toast(`Ran ${b.label}.`), (e) => toast(e.message, true)), { role: "accent", title: "Run the button now" })),
+      button("Try it", () => act(b.action).then(() => toast(`Ran ${b.label}.`), (e) => toast(e.message, true)), { role: "accent", title: "Run the shortcut now" })),
     h("p.hint", describe(b.action ?? {})),
-    h("div.row", { style: { marginTop: "14px" } }, button("Delete button", async () => {
-      if (await confirmDialog("Delete button", `Delete “${b.label}”? It leaves every page and its shortcut stops working.`, "Delete", "danger")) {
+    h("div.row", { style: { marginTop: "14px" } }, button("Delete shortcut", async () => {
+      if (await confirmDialog("Delete shortcut", `Delete “${b.label}”? It leaves every page and its key stops working.`, "Delete", "danger")) {
         ui.sel = null;
         attempt(() => edit({ op: "button.remove", id: b.id }, `Delete ${b.label}`));
       }

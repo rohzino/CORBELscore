@@ -8,7 +8,7 @@ import { defaultSize } from "/core/layout.js";
 import { TYPE_NAMES, normaliseKey } from "/core/fields.js";
 import { attempt, check, confirmDialog, dialog, menu, numberInput, remember, select, textInput, toast, ui } from "./ui.js";
 
-const SECTIONS = [["fields", "Fields"], ["buttons", "Buttons"], ["live", "Live data"], ["outputs", "Outputs"]];
+const SECTIONS = [["fields", "Fields"], ["buttons", "Shortcuts"], ["live", "Live data"], ["outputs", "Outputs"]];
 
 export function renderLibrary(el, ctx, light = false) {
   if (!store.project) return;
@@ -41,7 +41,7 @@ function fields(ctx) {
       h("span.typ", TYPE_NAMES[f.type]));
     return item;
   }));
-  return [h("div.row", addBtn, h("span.spacer"), h("span.hint", `${p.fields.length} fields`)),
+  return [h("div.row", addBtn, h("span.spacer"), h("span.hint", `${p.fields.length} field${p.fields.length === 1 ? "" : "s"}`)),
     h("p.hint", "Fields hold the values: scores, clocks, names. Drag one onto the page to get its control. ● marks fields on this page."),
     list];
 }
@@ -65,15 +65,15 @@ function buttons(ctx) {
   const p = store.project;
   const onPage = new Set(p.layout.pages.flatMap((pg) => pg.tiles.filter((t) => t.kind === "button").map((t) => t.button)));
   return [
-    h("div.row", button("+ New button", () => newButton(ctx), { role: "accent" }), h("span.spacer"), h("span.hint", `${p.buttons.length} buttons`)),
-    h("p.hint", "A button runs one or more steps as one undo step, and can have a keyboard shortcut. Buttons not on any page still work by shortcut."),
+    h("div.row", button("+ New shortcut", () => newButton(ctx), { role: "accent" }), h("span.spacer"), h("span.hint", `${p.buttons.length} shortcut${p.buttons.length === 1 ? "" : "s"}`)),
+    h("p.hint", "A shortcut runs one or more steps as one undo step. Put it on a page as a button, give it a key, or both. Shortcuts not on any page still work by their key."),
     h("div.list", p.buttons.map((b) => {
       const sel = ui.sel?.kind === "button" && ui.sel.id === b.id;
       return h(`div.item${sel ? ".sel" : ""}`, { tabindex: 0, draggable: true, title: "Drag onto the page",
         onclick: () => ctx.select({ kind: "button", id: b.id }), onkeydown: (e) => e.key === "Enter" && ctx.select({ kind: "button", id: b.id }),
         ondragstart: (e) => startDrag(e, { kind: "button", button: b.id, size: defaultSize("button") }) },
         h("span.grip", "⋮⋮"), h("span.name", b.label), b.hotkey ? kbd(b.hotkey) : null,
-        onPage.has(b.id) ? null : h("span.typ", { title: "Not on any page: works by shortcut only" }, "Key only"));
+        onPage.has(b.id) ? null : h("span.typ", { title: "Not on any page: works by its key only" }, "Key only"));
     })),
   ];
 }
@@ -81,9 +81,9 @@ function buttons(ctx) {
 async function newButton(ctx) {
   const p = store.project;
   const first = p.fields.find((f) => ["counter", "clock", "choice"].includes(f.type))?.key;   // a field "Add" can work on
-  const b = { id: crypto.randomUUID().replace(/-/g, "").slice(0, 10), label: "New button", role: "neutral", hotkey: "",
+  const b = { id: crypto.randomUUID().replace(/-/g, "").slice(0, 10), label: "New shortcut", role: "neutral", hotkey: "",
     action: first ? { do: "add", field: first, amount: 1 } : { do: "undo" } };
-  const ok = await attempt(() => edit({ op: "button.put", button: b }, "Add button"));
+  const ok = await attempt(() => edit({ op: "button.put", button: b }, "Add shortcut"));
   if (ok) ctx.select({ kind: "button", id: b.id });
 }
 
