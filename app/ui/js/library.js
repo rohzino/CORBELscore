@@ -10,12 +10,13 @@ import { attempt, check, confirmDialog, dialog, menu, numberInput, remember, sel
 
 const SECTIONS = [["fields", "Fields"], ["buttons", "Shortcuts"], ["live", "Live data"], ["outputs", "Outputs"]];
 
-export function renderLibrary(el, ctx, light = false) {
+// ambient: a refresh nobody asked for (status, live keys arriving); it waits while someone types.
+export function renderLibrary(el, ctx, ambient = false) {
   if (!store.project) return;
   rerender(el, () => h("div", { style: { display: "contents" } },
     h("div.side-tabs", { role: "tablist" }, SECTIONS.map(([id, label]) => h("button", { role: "tab", "aria-selected": String(ui.side === id),
       onclick: () => { ui.side = id; remember(); renderLibrary(el, ctx); } }, label))),
-    h("div.side-body", { "data-scroll": `lib-${ui.side}` }, ({ fields, buttons, live: liveData, outputs })[ui.side](ctx, () => renderLibrary(el, ctx)))));
+    h("div.side-body", { "data-scroll": `lib-${ui.side}` }, ({ fields, buttons, live: liveData, outputs })[ui.side](ctx, (amb = false) => renderLibrary(el, ctx, amb)))), { ambient });
 }
 
 function startDrag(e, item) {
@@ -130,7 +131,7 @@ function liveData(ctx, redraw) {
   const now = Date.now();
   if (st.state !== "off" && now - liveKeysAt > 900) {
     liveKeysAt = now;
-    call("/api/live-keys").then((r) => { const before = Object.keys(liveKeys).length; liveKeys = r.keys; if (Object.keys(liveKeys).length !== before) redraw(); }).catch(() => {});
+    call("/api/live-keys").then((r) => { const before = Object.keys(liveKeys).length; liveKeys = r.keys; if (Object.keys(liveKeys).length !== before) redraw(true); }).catch(() => {});
   }
   const bound = Object.fromEntries(p.fields.filter((f) => f.source).map((f) => [f.source, f]));
   const keys = Object.keys(liveKeys).sort();
@@ -150,8 +151,14 @@ function liveData(ctx, redraw) {
     h("div.section-title", "Connection"),
     h("div.form", h("label", "Source"), select(KINDS, kind, setKind, { k: "live-kind" }), ...rows),
     h("p.hint", HELP[kind] ?? ""),
-    h("div.row", { style: { margin: "6px 0" } }, h(`span.dot${st.state === "live" ? ".dot-ok" : ["connecting", "stale"].includes(st.state) ? ".dot-busy" : st.state === "error" ? ".dot-error" : ""}`),
-      chip(word[0], word[1]), h("span.hint.grow", st.detail || ""), kind ? button("Reconnect", () => attempt(() => call("/api/reconnect"))) : null),
+    h("div.col", { style: { margin: "6px 0", gap: "6px" }, "data-ambient": "live-status" },
+      h("div.row", h(`span.dot${st.state === "live" ? ".dot-ok" : ["connecting", "stale"].includes(st.state) ? ".dot-busy" : st.state === "error" ? ".dot-error" : ""}`),
+        chip(word[0], word[1]), h("span.spacer"),
+        st.connected ? [button("Reconnect", () => attempt(() => call("/api/connect")), { role: st.changed ? "accent" : "", title: "Connect again with the settings above" }),
+          button("Disconnect", () => attempt(() => call("/api/disconnect")), { title: "Stop live data; bound fields show their own values again" })]
+          : button("Connect", () => attempt(() => call("/api/connect")), { role: "accent", disabled: !kind, k: "live-connect" })),
+      h("p.hint", { style: { margin: 0, color: st.changed ? "var(--user-text, var(--user))" : "" } },
+        st.connected ? (st.changed ? "Settings changed. Reconnect to use them." : st.detail || "") : kind ? "Not connected. Set it up, then press Connect." : "")),
     h("div.section-title", { style: { marginTop: "14px" } }, "Keys and bindings"),
     h("p.hint", "Every key the source sends. Bind one to a field and the field follows it; rules and overrides still apply."),
     keys.length ? button("Suggest bindings", async () => {
@@ -174,7 +181,7 @@ function outputs(ctx) {
   const fileState = (name) => {
     const f = st.files?.[name] ?? { state: "off" };
     const [w, k] = { ok: ["Live", "accent"], error: ["Failing", "alert"], busy: ["Starting", "user"] }[f.state] ?? ["Off", "muted"];
-    return h("div.row.small", chip(w, k), h("span.hint.grow", { title: f.detail }, f.state === "error" ? f.detail : f.last_write ? `written ${ago(f.last_write)}` : ""));
+    return h("div.row.small", { "data-ambient": `file-${name}` }, chip(w, k), h("span.hint.grow", { title: f.detail }, f.state === "error" ? f.detail : f.last_write ? `written ${ago(f.last_write)}` : ""));
   };
   const web = st.web || {};
   const urls = web.running ? [
@@ -187,7 +194,7 @@ function outputs(ctx) {
     h("div.form",
       h("label", "Folder"), h("div.row", textInput(o.folder, (v) => put({ folder: v.trim() }), { k: "out-folder", placeholder: p.outputFolder }),
         store.state.host.dialogs ? button("Choose…", async () => { const r = await attempt(() => call("/api/pick", { kind: "folder" })); if (r?.path) put({ folder: r.path }); }) : null),
-      h("div.hint", { style: { gridColumn: "1 / -1" } }, `Now writing to ${st.folder || p.outputFolder}`)),
+      h("div.hint", { style: { gridColumn: "1 / -1" }, "data-ambient": "out-folder-now" }, `Now writing to ${st.folder || p.outputFolder}`)),
     h("div.col", { style: { marginTop: "8px" } },
       check("Text files: one per value, for OBS Text sources", o.text_enabled, (v) => put({ text_enabled: v }), { k: "out-text" }), fileState("text"),
       check("XML", o.xml_enabled, (v) => put({ xml_enabled: v }), { k: "out-xml" }),
@@ -204,7 +211,7 @@ function outputs(ctx) {
       check("Allow other computers and phones on this network", o.http_lan, (v) => put({ http_lan: v }), { k: "out-lan" }),
       h("div.form", h("label", "Token"), h("div.row", textInput(o.http_token, (v) => put({ http_token: v.trim() }), { k: "out-token", placeholder: "None: anyone who can reach it can press" }),
         button("Make one", () => put({ http_token: crypto.randomUUID().replace(/-/g, "").slice(0, 16) })))),
-      h("div.row.small", chip(web.running ? "Live" : web.error ? "Failing" : "Off", web.running ? "accent" : web.error ? "alert" : "muted"),
+      h("div.row.small", { "data-ambient": "web-status" }, chip(web.running ? "Live" : web.error ? "Failing" : "Off", web.running ? "accent" : web.error ? "alert" : "muted"),
         h("span.hint", web.running ? `${web.lan ? "this network" : "this computer only"} · port ${web.port} · ${web.clients} connected` : web.error || ""))),
     urls.length ? h("div.list", { style: { marginTop: "8px" } }, urls.map(([name, url, sub]) => h("div.item", { title: url },
       h("div.grow", h("div.name", name), h("div.sub.mono", url)), sub ? h("span.typ", sub) : null, button("Copy", () => copy(url), { cls: "btn-sm" })))) : null,

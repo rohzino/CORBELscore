@@ -31,7 +31,7 @@ Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Com
 
 Also:
 
-- **Live data** from Sportzcast over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML / JSON file or URL. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
+- **Live data** from Sportzcast over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML / JSON file or URL. It connects only when you press Connect. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
 - **Templates**: basketball, hockey, soccer, football, volleyball, baseball, a general scoreboard and a blank project.
 - **1.x projects open directly.** They are converted, and the original file is never overwritten.
 - **Recovery.** Unsaved work is kept, and offered back if TeleScore closes unexpectedly.

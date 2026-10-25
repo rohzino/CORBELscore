@@ -10,6 +10,8 @@
 - **Your own control layout.** Controls sit on a 24-column grid, on pages you name (Game, Teams, …). Drag from the Library, move, resize, use the keyboard; other controls move aside. Templates and older projects get a sensible layout to start from.
 - **Buttons are now Shortcuts** and belong to the project, not to panels. Place one on any page as a button, give it a key, or both.
 - A blank project opens straight into Edit mode with the Library showing.
+- **Live data connects only when you press Connect**, never on its own when a project opens or a setting changes. While connected, a changed setting shows "Reconnect to use them"; Disconnect stops it.
+- Status updates and arriving data no longer close a drop-down or interrupt typing in a box. Panels refresh once you leave the box.
 - Design undo restores layout and design only; it never rewinds the game.
 - Project format 3. Version 2 and 1.x files are converted and saved under a new name.
 

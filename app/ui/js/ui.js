@@ -1,6 +1,6 @@
 // Shared UI pieces: per-window state, menus, dialogs, toasts, form rows.
 
-import { h, button } from "./dom.js";
+import { h, button, noteCommit } from "./dom.js";
 
 // Window state, remembered between sessions where it helps.
 const saved = (() => { try { return JSON.parse(localStorage.getItem("ts-ui") || "{}"); } catch { return {}; } })();
@@ -105,7 +105,7 @@ export const confirmDialog = (title, text, ok = "OK", role = "accent") =>
 export function textInput(value, commit, { k, placeholder = "", type = "text", title = "", list = undefined, cls = "" } = {}) {
   const el = h(`input.input${cls ? "." + cls : ""}`, { value: value ?? "", placeholder, type, title, "data-k": k, list, spellcheck: false });
   let last = el.value;
-  const go = () => { if (el.value !== last) { last = el.value; commit(el.value, el); } };
+  const go = () => { if (el.value !== last) { last = el.value; noteCommit(el); commit(el.value, el); } };
   el.addEventListener("change", go);
   el.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); if (e.key === "Escape") { el.value = last; el.blur(); } });
   return el;
@@ -119,6 +119,7 @@ export function numberInput(value, commit, { k, min, max, step = 1, suffix = "",
     if (min !== undefined) v = Math.max(min, v);
     if (max !== undefined) v = Math.min(max, v);
     el.value = v;
+    noteCommit(el);
     commit(v);
   });
   return suffix ? h("div.row", el, h("span.muted.small", suffix)) : el;
@@ -129,13 +130,13 @@ export function select(options, value, commit, { k, title = "" } = {}) {
     const [v, label] = Array.isArray(o) ? o : [o, o];
     return h("option", { value: v, selected: String(v) === String(value) }, label);
   }));
-  el.addEventListener("change", () => commit(el.value));
+  el.addEventListener("change", () => { noteCommit(el); commit(el.value); });
   return el;
 }
 
 export function check(label, value, commit, { k, title = "" } = {}) {
   const box = h("input", { type: "checkbox", checked: !!value, "data-k": k });
-  box.addEventListener("change", () => commit(box.checked));
+  box.addEventListener("change", () => { noteCommit(box); commit(box.checked); });
   return h("label.check", { title }, box, label);
 }
 

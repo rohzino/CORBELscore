@@ -34,7 +34,44 @@ export const clear = (el) => { el.textContent = ""; return el; };
 
 // Re-render a container but keep keyboard focus, caret and scroll where they
 // were (by data-k), so an update from the service never steals typing.
-export function rerender(el, build) {
+// Something the person is typing in or choosing from: a rebuild would close it.
+const editable = (x) => !!x && (x.tagName === "SELECT" || x.tagName === "TEXTAREA" || x.isContentEditable ||
+  (x.tagName === "INPUT" && !["button", "checkbox", "radio", "range", "color", "submit", "reset"].includes(x.type)));
+
+// The box or drop-down that last saved a change. A rebuild caused by that
+// change may go ahead (the person expects to see its effect); any other rebuild
+// waits while they are in a box.
+let lastCommit = null;
+export function noteCommit(el) { lastCommit = el; }
+
+// Refreshes never interrupt someone typing in a box or holding a drop-down
+// open: status lights, live data arriving, or the save of the box they just
+// left. Parts marked data-ambient are swapped in place at once; the full
+// rebuild waits until focus leaves the panel.
+export function rerender(el, build, { ambient = false } = {}) {
+  const act = document.activeElement;
+  if (el.contains(act) && editable(act) && (ambient || act !== lastCommit)) {
+    const fresh = h("div", build());
+    for (const node of el.querySelectorAll("[data-ambient]")) {
+      const next = fresh.querySelector(`[data-ambient="${CSS.escape(node.dataset.ambient)}"]`);
+      if (next && !node.contains(document.activeElement)) node.replaceWith(next);
+    }
+    el._pendingBuild = build;
+    if (!el._waiting) {
+      el._waiting = true;
+      const later = () => setTimeout(() => {
+        if (el.contains(document.activeElement) && editable(document.activeElement)) return;   // moved to the next box: keep waiting
+        el.removeEventListener("focusout", later);
+        el._waiting = false;
+        const b = el._pendingBuild;
+        el._pendingBuild = null;
+        if (b && el.isConnected) rerender(el, b);
+      }, 0);
+      el.addEventListener("focusout", later);
+    }
+    return;
+  }
+  el._pendingBuild = null;   // a real rebuild supersedes a waiting ambient one
   const active = document.activeElement;
   const k = active && el.contains(active) ? active.dataset.k : null;
   const sel = k && "selectionStart" in active ? [active.selectionStart, active.selectionEnd] : null;

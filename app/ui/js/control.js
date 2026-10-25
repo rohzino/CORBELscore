@@ -180,8 +180,10 @@ export function mountControl(root) {
     clear(band);
     if (ed) band.append(chip("Editing"), h("span", "Drag to move, drag the corner to resize. Controls do not fire while you edit. Shortcuts still do."),
       h("span.spacer"), button("Done: lock the layout", () => setMode("locked"), { cls: "btn-sm" }));
-    clear(work);
-    if (ed) work.append(lib, center, props); else work.append(center);
+    // Re-attach the panels only when the mode changed: moving a panel in the
+    // page drops the focus of whatever box is open in it.
+    const want = ed ? [lib, center, props] : [center];
+    if (want.length !== work.children.length || want.some((x, i) => work.children[i] !== x)) { clear(work); work.append(...want); }
     renderSubbar();
     renderLayout();
     if (ed) { renderLibrary(lib, ctx); renderProps(props, ctx); }
@@ -192,7 +194,7 @@ export function mountControl(root) {
     ui.sel = sel;
     for (const [id, { el }] of tiles) el.classList.toggle("sel", sel?.kind === "tile" && sel.id === id);
     renderProps(props, ctx);
-    renderLibrary(lib, ctx, true);
+    renderLibrary(lib, ctx);
   }
 
   function commitTiles(newTiles, label, fixedIds = []) {
@@ -344,7 +346,7 @@ export function mountControl(root) {
   const offs = [
     on("project", (p) => { if (p) renderAll(); }),
     on("snap", (s) => { for (const { update } of tiles.values()) update(s); }),
-    on("status", () => { if (editing()) { renderSubbar(); renderLibrary(lib, ctx, true); } }),
+    on("status", () => { if (editing()) { renderSubbar(); renderLibrary(lib, ctx, true); } }),   // ambient: waits while typing
   ];
   renderAll();
   return () => { offs.forEach((f) => f()); releaseKeys(); ro.disconnect(); for (const { el } of tiles.values()) el._destroy?.(); };

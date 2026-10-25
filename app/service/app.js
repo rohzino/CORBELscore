@@ -89,7 +89,7 @@ export class App {
     this.writer.submit(e.snapshot());
     this._refreshAssets();
     await this._applyServer();
-    this._applySource();
+    this._sourceChanged = false;   // live data waits for Connect
     this.timer = setInterval(() => { try { e.tick(); } catch (err) { console.error("tick", err); } }, 20);
     this._bindGlobalKeys();
     this._sendProject();
@@ -240,12 +240,26 @@ export class App {
   }
 
   // ----- live data --------------------------------------------------------------------------
-  _applySource() {
+  // Nothing connects until the operator presses Connect: changing the settings
+  // never starts, restarts or drops a connection by itself.
+  _connect() {
     this.source?.stop();
     const s = this.project.source;
     this.project.engine.clearSources();
-    this.source = new SportzcastSource(s, this.settings.get("sportzcast_token"), (v) => this.project?.engine.feed(v), () => this._status());
-    this.source.start();
+    this.source = null;
+    this._sourceChanged = false;
+    if (s.kind) {
+      this.source = new SportzcastSource(s, this.settings.get("sportzcast_token"), (v) => this.project?.engine.feed(v), () => this._status());
+      this.source.start();
+    }
+    this._status();
+  }
+
+  _disconnect() {
+    this.source?.stop();
+    this.source = null;
+    this._sourceChanged = false;
+    this.project?.engine.clearSources();   // bound fields show their own values again
     this._status();
   }
 
@@ -260,7 +274,7 @@ export class App {
     out.png = this._png ?? { state: p.outputs.image_boards.length ? (this.host?.capturePng ? "busy" : "off") : "off", detail: this.host?.capturePng ? "" : "Pictures need the TeleScore app window." };
     out.web = { running: this.public.running, port: this.public.port, lan: p.outputs.http_lan, error: this.public.error, clients: this.publicHub.clients.size,
       url: this.public.running ? this.public.url("/") : "" };
-    out.live = this.source ? { ...this.source.status, keys: this.source.status.keys } : { state: "off" };
+    out.live = this.source ? { ...this.source.status, keys: this.source.status.keys, connected: true, changed: !!this._sourceChanged } : { state: "off", connected: false };
     out.scoreUndo = { can: p.engine.canUndo(), canRedo: p.engine.canRedo() };
     return out;
   }
@@ -336,7 +350,7 @@ export class App {
       this.writer.reconfigure(p.outputs, p.name);
       if (JSON.stringify(before.outputs) !== JSON.stringify(p.outputs) || parts.includes("outputs")) await this._applyServer();
     }
-    if (parts.includes("source") && JSON.stringify(before.source) !== JSON.stringify(p.source)) this._applySource();
+    if (parts.includes("source") && JSON.stringify(before.source) !== JSON.stringify(p.source) && this.source) { this._sourceChanged = true; this._status(); }
     if (parts.includes("fields")) this.writer.reconfigure(p.outputs, p.name);
     this._refreshAssets();
     this._bindGlobalKeys();
@@ -605,10 +619,11 @@ export class App {
       case "/api/live-keys": return { keys: this.source?.keys ?? {} };
       case "/api/token": {
         this.settings.set("sportzcast_token", String(b.token ?? ""));
-        if (proj) this._applySource();
+        if (this.source) { this._sourceChanged = true; this._status(); }
         return {};
       }
-      case "/api/reconnect": if (proj) this._applySource(); return {};
+      case "/api/connect": case "/api/reconnect": if (proj) this._connect(); return {};
+      case "/api/disconnect": this._disconnect(); return {};
       case "/api/settings": {
         for (const k of ["scheme", "global_keys", "last_board"]) if (b[k] !== undefined) this.settings.set(k, b[k]);
         this._bindGlobalKeys();

@@ -75,6 +75,60 @@ test("a blank project opens straight into Edit with the Library", { skip }, asyn
   assert.equal(await page.locator("button.edit").getAttribute("aria-pressed"), "true");
 });
 
+test("live data connects only when Connect is pressed", { skip }, async () => {
+  const xml = path.join(dataDir, "live.xml");
+  fs.writeFileSync(xml, `<?xml version="1.0"?><Scoreboard><HomeScore>5</HomeScore></Scoreboard>`);
+  await page.locator(".side-tabs").getByText("Live data").click();
+  await page.locator('[data-k="live-kind"]').selectOption("livexml");
+  const pathBox = page.locator('[data-k="live-path"]');
+  await pathBox.fill(xml);
+  await pathBox.press("Enter");
+  await page.waitForTimeout(500);
+  assert.equal(app.source, null, "changing the settings did not connect");
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.waitForFunction(() => /live/i.test(document.querySelector('[data-ambient="live-status"]')?.innerText ?? ""));
+  const first = app.source;
+  assert.ok(first, "Connect connected");
+  // Changing a setting while connected keeps the connection and says so.
+  const stale = page.locator('[data-k="live-stale"]');
+  await stale.fill("9");
+  await stale.press("Tab");
+  await page.waitForTimeout(400);
+  await page.locator('[data-ambient="live-status"]').screenshot({ path: "/tmp/claude-0/shots/live-row.png" }).catch(() => {});
+  await page.getByText("Settings changed. Reconnect to use them.").waitFor();
+  assert.equal(app.source, first, "the connection was not restarted by itself");
+  await page.getByRole("button", { name: "Disconnect" }).click();
+  await page.waitForFunction(() => /not connected/i.test(document.querySelector('[data-ambient="live-status"]')?.innerText ?? ""));
+  assert.equal(app.source, null);
+});
+
+test("status changes never interrupt typing or a drop-down", { skip }, async () => {
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.waitForFunction(() => /live/i.test(document.querySelector('[data-ambient="live-status"]')?.innerText ?? ""));
+  const xml = path.join(dataDir, "live.xml");
+  let n = 0;
+  const timer = setInterval(() => fs.writeFileSync(xml, `<?xml version="1.0"?><Scoreboard><HomeScore>${n++}</HomeScore><GuestScore>${n % 3}</GuestScore></Scoreboard>`), 150);
+  try {
+    const poll = page.locator('[data-k="live-poll"]');
+    await poll.click();
+    await poll.fill("");
+    await page.keyboard.type("12", { delay: 120 });
+    for (let i = 0; i < 5; i++) { app._status(); await page.waitForTimeout(150); }
+    await page.keyboard.type("34", { delay: 120 });
+    await page.waitForTimeout(600);
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.k), "live-poll", "focus stayed in the box");
+    assert.equal(await poll.inputValue(), "1234", "nothing typed was lost");
+    await poll.press("Escape");   // leave without saving
+    const bind = page.locator('[data-k^="bind-"]').first();
+    await bind.focus();
+    const handle = await bind.elementHandle();
+    for (let i = 0; i < 5; i++) { app._status(); await page.waitForTimeout(150); }
+    const state = await handle.evaluate((x) => ({ connected: x.isConnected, focused: document.activeElement === x, active: document.activeElement?.dataset?.k ?? document.activeElement?.tagName }));
+    assert.deepEqual(state, { connected: true, focused: true, active: state.active }, `the drop-down stayed open (focus on ${state.active})`);
+  } finally { clearInterval(timer); }
+  await page.getByRole("button", { name: "Disconnect" }).click();
+});
+
 test("no errors in the page", { skip }, () => {
   assert.deepEqual(errors, []);
 });
