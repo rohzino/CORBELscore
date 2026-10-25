@@ -1,6 +1,32 @@
 # Changelog
 
-## 2.0.0a3 (unreleased)
+## CORBELscore 2.0.0a4 (unreleased)
+
+TeleScore is now **CORBELscore**, built on TeleScore's engine, outputs and project format.
+
+### Brand
+- New name, wordmark (**CORBEL**score at 91% opacity), tagline lockup and app icon (a corbel: three courses stepping out), as outline SVGs in `app/assets/brand/`, rebuilt by `scripts/brand/build.py`.
+- New design system ([docs/design-system.md](docs/design-system.md)): Basalt, Limestone (Pantone P 179-1 U), Patina, Brass and Terracotta. Two schemes, Basalt (dark) and Limestone (light), replace the old ones; a saved old scheme falls back to Basalt.
+- Red Hat Text, Display and Mono ship with the app and replace Archivo in the window and the templates (Archivo stays for older graphics).
+- Projects save as `.corbel`; TeleScore `.tsproj` files open and keep their name. The nested XML feed is `corbelscore.xml` with a `<corbelscore>` root. The remote-control header is `X-CORBELscore-Token` (`X-TeleScore-Token` still works). The launcher is `CORBELscore.bat`. Settings, including the Sportzcast token, are copied from TeleScore on the first run.
+
+### Graphics editor
+- The board is framed like a document in a photo editor: its name and size above it, the pasteboard around it dimmed, optional title- and action-safe guides.
+- Easier resizing: whole edges resize, handles have a 24 px target, edges snap to other elements and the board, the size shows while dragging, and a click never nudges. Corners keep the shape of pictures and boards (Shift for the other way).
+- Text boxes: **Auto width** (hugs the words and grows from its alignment, like OBS) or **Fixed width** with **Wrap** and **Shrink to fit**. Dragging an edge of Auto text fixes its width. New text starts Auto; a field dropped on a board starts Fixed.
+- A **font list** replaces typing: the bundled fonts first, each shown in its own face, then the computer's own fonts on request, or any name typed.
+- **Opacity** for every element as a percentage slider, previewed while dragging.
+- **Pictures** arrive at their own size; one bigger than the board asks whether to fit it. Picture opens the file picker straight away.
+- **Boards inside boards.** Board puts another board inside this one, sized and centred, with an **On air** switch added to the control page. The browser source, projector, previews and PNGs all draw it; a board can never end up inside itself.
+- **Split view** shows the live controls under the board, on any page, with a draggable divider.
+- One **Arrange** menu (align, distribute, order, duplicate) and one **Show** menu (live values, snapping, safe areas) instead of seven toolbar controls.
+- A new board opens straight away when made from the + menu.
+
+### Control
+- Tiles resize from their right and bottom edges as well as the corner, following the pointer by half a cell.
+- On/off switches show their own words ("On air" / "Off air"); `<key>.on` is published for every on/off field, so "show while" works whatever the words.
+
+## TeleScore 2.0.0a3
 
 ### Changed
 - **Rebuilt on Electron and JavaScript.** One runtime for the engine, outputs, live data and window; no Python, PyQt or Node to install. `TeleScore.bat` downloads Electron 44.9.3 from GitHub on first run, checks its SHA-256 and runs it from a `runtime` folder. `TeleScore.bat build` makes a portable `TeleScore.exe` folder.

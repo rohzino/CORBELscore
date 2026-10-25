@@ -17,6 +17,10 @@ export const ui = {
   sel: null,                            // control selection: {kind: "tile"|"field"|"button"|"page", id}
   gsel: [],                             // designer selection (element ids)
   gpick: null,                          // designer: {kind: "condition"|"animation", id}
+  split: saved.split ?? false,          // designer: live controls beside the canvas
+  splitPage: saved.splitPage ?? null,   // the control page shown there
+  splitH: saved.splitH ?? 300,          // its height in px
+  safe: saved.safe ?? false,            // designer: title- and action-safe guides
 };
 export function remember() {
   const { sel, gsel, gpick, ...keep } = ui;
@@ -149,6 +153,19 @@ export function colorInput(value, commit, { k, placeholder = "none" } = {}) {
   const text = textInput(value, (v) => { paint(v); commit(v); }, { k, placeholder });
   picker.addEventListener("change", () => { const keepAlpha = /^#[0-9a-f]{8}$/i.test(text.value) ? text.value.slice(7) : ""; text.value = picker.value + keepAlpha; paint(text.value); commit(text.value); });
   return h("div.row", h("label.swatch", swatchFill, picker), text);
+}
+
+// 0..1 shown as 0..100 %: a slider for feel, a box for exact numbers. preview(v)
+// runs while dragging; commit(v) once on release or Enter.
+export function percentInput(value, commit, { k, preview = null, title = "" } = {}) {
+  const pct = Math.round((Number(value) || 0) * 100);
+  const range = h("input.range", { type: "range", min: 0, max: 100, step: 1, value: pct, "data-k": k ? `${k}-r` : undefined, title, "aria-label": title || "Opacity" });
+  const box = h("input.input", { type: "number", min: 0, max: 100, step: 1, value: pct, "data-k": k, style: { width: "64px", flex: "none" } });
+  const clamp = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+  range.addEventListener("input", () => { box.value = range.value; preview?.(clamp(range.value) / 100); });
+  range.addEventListener("change", () => { noteCommit(range); commit(clamp(range.value) / 100); });
+  box.addEventListener("change", () => { const v = clamp(box.value); box.value = v; range.value = v; noteCommit(box); commit(v / 100); });
+  return h("div.row", range, box, h("span.muted.small", "%"));
 }
 
 export const formRow = (label, control, hint = "") => [h("label", label), control, hint ? h("div.hint", hint) : null];

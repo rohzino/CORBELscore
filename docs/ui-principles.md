@@ -1,6 +1,6 @@
 # UI principles
 
-Why the TeleScore window looks and behaves the way it does. Change the UI with these in mind.
+Why the CORBELscore window looks and behaves the way it does. Change the UI with these in mind.
 
 ## Two tabs, one question each
 
@@ -11,7 +11,7 @@ Everything the operator touches during a game is in Control. Everything a design
 
 ## Edit and Locked are modes, so they must look different
 
-Modes cause errors when people don't notice which one they are in (NN/g, *Modes in User Interfaces*). TeleScore needs the modes anyway: a scoring control that also moves when dragged would be a disaster on air. So:
+Modes cause errors when people don't notice which one they are in (NN/g, *Modes in User Interfaces*). CORBELscore needs the modes anyway: a scoring control that also moves when dragged would be a disaster on air. So:
 
 - Edit mode has **two strong signals**: an amber EDITING band across the window and a dotted grid behind the controls. Locked has neither.
 - In Edit mode, controls **do not fire**. Shortcuts still do, so a game in progress is never stuck.
@@ -20,7 +20,7 @@ Modes cause errors when people don't notice which one they are in (NN/g, *Modes 
 
 ## Direct manipulation, with a keyboard way too
 
-Drag a field from the Library onto the page; drag a control to move it; drag its corner to resize (NN/g, *Direct Manipulation*).
+Drag a field from the Library onto the page; drag a control to move it; drag an edge or corner to resize (NN/g, *Direct Manipulation*).
 
 - Feedback is immediate: a ghost shows where the control will land, and others move aside as you drag (NN/g, *Response Times: the 3 important limits*: under 0.1 s feels instant).
 - Every drag has a keyboard equivalent: arrows move, Shift + arrows resize, Delete removes.
@@ -39,13 +39,20 @@ Controls live on pages (Game, Teams, …), the model operators already know from
 
 ## Status is a colour and a word
 
-Every state shows as both (Rally): RUNNING, STOPPED, LIVE, OVERRIDE, WAITING, and the header lights LIVE / FILES / WEB with a tooltip that explains the problem. Colour alone fails for colour-blind operators and on washed-out monitors.
+Every state shows as both: RUNNING, STOPPED, LIVE, OVERRIDE, WAITING, and the header lights LIVE / FILES / WEB with a tooltip that explains the problem. Colour alone fails for colour-blind operators and on washed-out monitors.
 
-## Keystone fundamentals
+## Don't make the user think
 
-- A nine-colour scheme derived by recipe, so Keystone Dark, Keystone Light and Rally stay consistent.
-- Flat panels, hairline borders, no shadows.
-- Archivo, heavy and in capitals for labels.
+- One click does the whole job. Picture opens the file picker and the picture arrives at its own size; Board puts a board inside this one and adds its On air switch to the control page; Connect is the only thing that connects.
+- Fewer, clearer choices. Align, distribute, order and duplicate live in one Arrange menu; view options in one Show menu.
+- Defaults that are usually right: new text hugs its words; a field dropped on a board gets a fixed box; a blank project opens in Edit.
+- The thing you are changing stays visible: split view keeps the controls under the board, and opacity previews while you drag.
+
+## The design system
+
+- Five named colours (Basalt, Limestone, Patina, Brass, Terracotta), everything else derived and contrast-checked, so the dark and light schemes stay consistent. See [design-system.md](design-system.md).
+- Flat panels, hairline borders; shadows only on what floats.
+- Red Hat Text to read, Red Hat Display for numbers and titles, tracked capitals for labels.
 - Words on buttons, not icons alone.
 - One accent colour for the main action on screen.
 

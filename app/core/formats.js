@@ -1,6 +1,6 @@
 // Feed documents built from an engine snapshot. All UTF-8, regenerated whole.
 //
-// nested -> telescore.xml   field keys become a tree: home.score is
+// nested -> corbelscore.xml   field keys become a tree: home.score is
 //   <home><score>3</score></home>; a field's sub-keys are attributes
 //   (<game running="1">4:07</game>, penalty slots p1_player, p1_time), so
 //   string() of an element is always its value. For Ross XPression and Chyron.
@@ -57,7 +57,7 @@ function attrName(sub) {
 
 const VALUE = Symbol("value");
 
-export function xmlNested(snap, root = "telescore") {
+export function xmlNested(snap, root = "corbelscore") {
   const [fields, subs] = split(snap);
   const tree = new Map();
   for (const k of fields) {
@@ -133,7 +133,7 @@ export function stateJson(snap, indent) {
 }
 
 export const XML_PROFILES = {
-  nested: ["telescore.xml", xmlNested, "Ross XPression DataLinq, Chyron: address values by path, e.g. /telescore/home/score"],
+  nested: ["corbelscore.xml", xmlNested, "Ross XPression DataLinq, Chyron: address values by path, e.g. /corbelscore/home/score"],
   flat: ["vmix.xml", xmlFlat, "vMix data source: one row, XPath //row; columns are home_score, clock_game …"],
   fields: ["fields.xml", xmlFields, "Any system that looks values up by key: //field[@key='home.score']"],
 };

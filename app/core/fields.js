@@ -134,6 +134,8 @@ export class ToggleField extends Field {
   }
   toggle() { this.value = !this.value; }
   display() { return this.value ? this.on_text : this.off_text; }
+  // Whatever its words, "<key>.on" says plainly whether it is on, for "show while".
+  extra() { return { on: this.value ? "1" : "0" }; }
   raw() { return this.value; }
   restore(s) { this.value = !!s; }
   reset() { this.value = this.default; }

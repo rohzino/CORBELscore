@@ -1,8 +1,8 @@
 {
-  "name": "telescore",
-  "productName": "TeleScore",
-  "version": "2.0.0-alpha.3",
-  "description": "Open-source scoreboard and live scoring for streams and broadcast.",
+  "name": "corbelscore",
+  "productName": "CORBELscore",
+  "version": "2.0.0-alpha.4",
+  "description": "CORBELscore: live broadcast scoring solution. Built on TeleScore.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "app/main.js",

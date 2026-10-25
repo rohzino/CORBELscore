@@ -1,4 +1,4 @@
-// The TeleScore service: one open project, its engine loop, file outputs,
+// The CORBELscore service: one open project, its engine loop, file outputs,
 // both web servers, live data, design undo, recovery and the studio API that
 // the window uses. Everything that touches the operating system goes through
 // `host` (dialogs, projector windows, global shortcuts, PNG capture), which the
@@ -48,7 +48,7 @@ export class App {
     this.writer = null;
     this.source = null;
     this.timer = null;
-    this.recoveryFile = path.join(dataDir, "recovery.tsproj");
+    this.recoveryFile = path.join(dataDir, "recovery.corbel");
     this.studioPort = studioPort;
     this._assets = new Set();
     this._snapPending = false;
@@ -271,7 +271,7 @@ export class App {
     if (!p) return out;
     out.files = this.writer ? structuredClone(this.writer.status) : {};
     out.folder = this.writer?.folder ?? "";
-    out.png = this._png ?? { state: p.outputs.image_boards.length ? (this.host?.capturePng ? "busy" : "off") : "off", detail: this.host?.capturePng ? "" : "Pictures need the TeleScore app window." };
+    out.png = this._png ?? { state: p.outputs.image_boards.length ? (this.host?.capturePng ? "busy" : "off") : "off", detail: this.host?.capturePng ? "" : "Pictures need the CORBELscore app window." };
     out.web = { running: this.public.running, port: this.public.port, lan: p.outputs.http_lan, error: this.public.error, clients: this.publicHub.clients.size,
       url: this.public.running ? this.public.url("/") : "" };
     out.live = this.source ? { ...this.source.status, keys: this.source.status.keys, connected: true, changed: !!this._sourceChanged } : { state: "off", connected: false };
@@ -514,11 +514,12 @@ export class App {
     if (!p) throw new ProjectError("Nothing to save.");
     file = file || p.path;
     if (!file) throw new ProjectError("Choose where to save the project first.");
-    if (!/\.tsproj$/i.test(file)) file += ".tsproj";
+    // New projects save as .corbel; a TeleScore .tsproj keeps its own name (same format).
+    if (!/\.(corbel|tsproj)$/i.test(file)) file += ".corbel";
     if (p.importedFrom && path.resolve(file).toLowerCase() === path.resolve(p.importedFrom).toLowerCase()) {
       throw new ProjectError("That is the older file this project came from. Save under a new name so the original stays as it was.");
     }
-    if (!p.path && p.name === "Untitled") p.name = path.basename(file).replace(/\.tsproj$/i, "");
+    if (!p.path && p.name === "Untitled") p.name = path.basename(file).replace(/\.(corbel|tsproj)$/i, "");
     saveProject(p, file);
     p.importedFrom = "";
     this.dirty = false;
@@ -563,7 +564,7 @@ export class App {
   }
 
   async _studio(req, res, url) {
-    // Only this computer's TeleScore window: the right host name (no DNS
+    // Only this computer's CORBELscore window: the right host name (no DNS
     // rebinding). Read-only pages need nothing more; editing needs the key.
     if (!this._okHost(req)) return send(res, 403, "Forbidden.");
     const p = url.pathname;
@@ -574,8 +575,8 @@ export class App {
       if (!handled) send(res, 404, "Not found.");
       return;
     }
-    const key = req.headers["x-telescore-key"] || url.searchParams.get("key");
-    if (key !== this.key) return send(res, 403, "This page belongs to the TeleScore window.");
+    const key = req.headers["x-corbelscore-key"] || url.searchParams.get("key");
+    if (key !== this.key) return send(res, 403, "This page belongs to the CORBELscore window.");
     if (p === "/file") {
       // Pictures and sounds the operator picked, for previews and buzzers.
       return serveFile(res, url.searchParams.get("path"), (full, ext) => (IMAGE_TYPES.has(ext) || SOUND_TYPES.has(ext)) && fs.existsSync(full));
@@ -632,17 +633,17 @@ export class App {
       }
       case "/api/file": return this._file(b);
       case "/api/pick": {
-        if (!this.host?.dialog) throw new Error("Choosing files needs the TeleScore app window. Type the path instead.");
+        if (!this.host?.dialog) throw new Error("Choosing files needs the CORBELscore app window. Type the path instead.");
         return { path: await this.host.dialog(b.kind, b) };
       }
       case "/api/projector": {
-        if (!this.host?.openProjector) throw new Error("Projector windows need the TeleScore app window.");
+        if (!this.host?.openProjector) throw new Error("Projector windows need the CORBELscore app window.");
         await this.host.openProjector(this.studio.url(`/board/${encodeURIComponent(b.board)}?bg=black`), b);
         return {};
       }
       case "/api/displays": return { displays: (await this.host?.displays?.()) ?? [] };
       case "/api/open": {
-        if (!this.host?.openPath) throw new Error("Needs the TeleScore app window.");
+        if (!this.host?.openPath) throw new Error("Needs the CORBELscore app window.");
         await this.host.openPath(b.path || this.writer?.folder, b.kind);
         return {};
       }
@@ -662,7 +663,7 @@ export class App {
     if (op === "open") {
       let file = b.path;
       if (!file) {
-        if (!this.host?.dialog) throw new Error("Type the project's path, or use the TeleScore app window.");
+        if (!this.host?.dialog) throw new Error("Type the project's path, or use the CORBELscore app window.");
         file = await this.host.dialog("project");
         if (!file) return { cancelled: true };
       }
@@ -675,7 +676,7 @@ export class App {
       if (!file) {
         if (b.path) file = b.path;
         else if (this.host?.dialog) {
-          const suggestName = this.project.importedFrom ? this.project.importedFrom.replace(/\.[^.\\/]+$/, ".tsproj") : `${this.project.name}.tsproj`;
+          const suggestName = this.project.importedFrom ? this.project.importedFrom.replace(/\.[^.\\/]+$/, ".corbel") : `${this.project.name}.corbel`;
           file = await this.host.dialog("save", { name: suggestName });
           if (!file) return { cancelled: true };
         } else throw new Error("Type where to save the project.");

@@ -29,7 +29,7 @@ This is a script loaded through Tools → Scripts, with no compiling.
 - It registers OBS hotkeys named after the project's buttons, from a new `/api/buttons` endpoint (a small addition). Each hotkey POSTs the button's action.
 - Limits: it uses OBS's embedded Python, its text sources only, and it can't do custom rendering.
 
-## Stage 2: native C++ plugin (`obs-telescore`)
+## Stage 2: native C++ plugin (`obs-corbelscore`)
 
 - **Source "TeleScore Field".** Renders one field's value with OBS's text renderer (FreeType), with font and colour settings. Its value comes from an SSE client on a worker thread, guarded by a mutex.
 - **Source "TeleScore Board".** Renders a board natively: the same element model, rules and animations as `app/core/animation.js`. The board and the project's animation recipes come together from `/board/<id>.json`. It draws with `gs_*` calls.

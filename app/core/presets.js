@@ -3,18 +3,20 @@
 
 import { Clock } from "./clock.js";
 import { makeBoard, makeElement } from "./board.js";
+import { DISPLAY_FONT } from "./fonts.js";
 import { Engine } from "./engine.js";
 import { ChoiceField, ClockField, CounterField, ImageField, PenaltyField, TextField, ToggleField } from "./fields.js";
 import { autoLayout, makeLayout, makePage } from "./layout.js";
 import { makeButton, Project } from "./project.js";
 
-// On-air palette (Keystone Dark brand; always used on air whatever the UI scheme)
-export const ONAIR = { ink: "#e8f1ec", panel: "#18211e", head: "#0a0f0d", head95: "#0a0f0df2", accent: "#3ddc84",
-  hi: "#5ad1e6", user: "#ffb454", alert: "#ff6b6b", muted: "#a8b5ae", rule: "#34423c" };
+// On-air palette for the templates: CORBELscore's Basalt, Limestone (Pantone
+// P 179-1 U) and Patina, whatever the window's colour scheme.
+export const ONAIR = { ink: "#f5f5f1", panel: "#1a1d1d", head: "#0c0d0d", head95: "#0c0d0df2", accent: "#4cc9d6",
+  hi: "#8fdde5", user: "#e4b363", alert: "#ef6a5e", muted: "#a9aaa4", rule: "#2e3232" };
 
 function teams({ steps = [1] } = {}) {
   const out = [];
-  for (const [side, name, short, color] of [["away", "Away", "AWY", "#5ad1e6"], ["home", "Home", "HOM", "#ffb454"]]) {
+  for (const [side, name, short, color] of [["away", "Away", "AWY", "#4cc9d6"], ["home", "Home", "HOM", "#e4b363"]]) {
     const T = side[0].toUpperCase() + side.slice(1);
     out.push(new TextField(`${side}.name`, { label: `${T} name`, value: name }),
       new TextField(`${side}.short`, { label: `${T} abbreviation`, value: short, uppercase: true }),
@@ -31,7 +33,7 @@ function gameClock({ key = "clock.game", label = "Game clock", minutes = 12, ten
   return new ClockField(key, { label, clock });
 }
 
-const t = (o) => makeElement({ kind: "text", font: "Archivo", weight: 900, color: ONAIR.ink, tabular: true, fit: true, ...o });
+const t = (o) => makeElement({ kind: "text", font: DISPLAY_FONT, weight: 800, color: ONAIR.ink, tabular: true, fit: true, ...o });
 const box = (o) => makeElement({ kind: "box", ...o });
 
 // A one-line scorebug, bottom left, 1920 x 1080 transparent.

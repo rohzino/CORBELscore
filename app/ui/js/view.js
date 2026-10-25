@@ -55,9 +55,10 @@ export function mountView(root) {
     const stage = h(`div.live-stage${ui.liveBg === "checker" ? ".checker" : ".bg-" + ui.liveBg}`);
     el.append(stage);
     liveView = new BoardView(stage, { assetUrl: fileUrl });
+    liveView.setBoards(p.boards);
     liveView.setBoard(b, p.animations);
     if (store.snapshot) liveView.setValues(store.snapshot.values, store.snapshot.fx);
-    const offs = [on("snap", (s) => liveView.setValues(s.values, s.fx)), on("project", (np) => { if (np) { const nb = np.boards.find((x) => x.id === ui.liveBoard); if (nb) liveView.setBoard(nb, np.animations); liveView.setValues(store.snapshot.values, store.snapshot.fx); } })];
+    const offs = [on("snap", (s) => liveView.setValues(s.values, s.fx)), on("project", (np) => { if (np) { const nb = np.boards.find((x) => x.id === ui.liveBoard); liveView.setBoards(np.boards); if (nb) liveView.setBoard(nb, np.animations); liveView.setValues(store.snapshot.values, store.snapshot.fx); } })];
     return () => { offs.forEach((f) => f()); liveView.destroy(); liveView = null; };
   }
 

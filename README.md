@@ -1,21 +1,21 @@
-<img src="img/logo.png" alt="TeleScore" width="320">
+<img src="app/assets/brand/lockup-on-basalt.svg" alt="CORBELscore. Live broadcast scoring solution." width="440">
 
-# TeleScore 2
+# CORBELscore
 
-Open-source scoreboard and live scoring for streams and broadcast. Keep score in one window. The scores go out as text files, XML (generic, vMix, Ross XPression, Chyron), JSON, browser sources for OBS and vMix, PNG pictures and a full-screen projector window.
+Live broadcast scoring solution. Keep score in one window. The scores go out as text files, XML (generic, vMix, Ross XPression, Chyron), JSON, browser sources for OBS and vMix, PNG pictures and a full-screen projector window.
 
-This is a community continuation of [TeleScore](https://github.com/JumpShot-Interactive/TeleScore) by the JumpShot team, rebuilt from the ground up. It is still licensed under the AGPL-3.0. See [AUDIT.md](AUDIT.md) for what was wrong in 1.0.3 and how 2.0 fixes it, and [CHANGELOG.md](CHANGELOG.md) for what is new.
+CORBELscore is built on [TeleScore](https://github.com/JumpShot-Interactive/TeleScore), the open-source scoring utility by the JumpShot team. TeleScore's engine, outputs and project format are its building blocks; this is the next version, rebuilt from the ground up and renamed (a corbel is the stone bracket that carries a load). It is licensed under the AGPL-3.0, like TeleScore. See [AUDIT.md](AUDIT.md) for what was wrong in TeleScore 1.0.3 and how it was fixed, and [CHANGELOG.md](CHANGELOG.md) for what is new.
 
 ## What it does
 
-TeleScore has two tabs.
+CORBELscore has two tabs.
 
 **Control** is where you run the game and where you arrange how you run it. A switch at the top right flips it between two modes:
 
 - **Locked** (for the game): your controls fill the window and every button is live. Rows stretch so a page fits the screen without scrolling.
 - **Edit** (for setting up): the controls become a layout you arrange, between two side panels.
   - Left, the **Library**: Fields, Shortcuts, Live data and Outputs. Drag a field or shortcut onto the page to get its control.
-  - Middle, the **layout**: a 24-column grid. Drag to move, drag a corner to resize, or use the arrow keys (Shift + arrows resizes). Other controls move out of the way.
+  - Middle, the **layout**: a 24-column grid. Drag to move, drag an edge or corner to resize, or use the arrow keys (Shift + arrows resizes). Other controls move out of the way.
   - Right, **Properties** of whatever is selected: the control's size, the field's rules, live key and override, a shortcut's steps and key.
 
   Controls do not fire while you edit, so nothing goes to air by accident; shortcuts still work. An amber EDITING band and a dotted grid make the mode impossible to miss. Ctrl+Z undoes layout and design changes but never rewinds a score or a clock.
@@ -24,7 +24,13 @@ Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Com
 
 **View** is what goes out, in two sections:
 
-- **Graphics**, the scoreboard designer. Boards are fixed canvases (1920 × 1080 by default). Elements snap to each other and to the board; align, distribute, reorder, copy and paste, zoom and pan. Drag a field onto the board to show it. Text shrinks to fit, colours can follow fields such as `{home.color}`. Here too are:
+- **Graphics**, the scoreboard designer. Boards are fixed canvases (1920 × 1080 by default), drawn like a document in a photo editor: the board is framed and labelled, the pasteboard around it dimmed, with optional title- and action-safe guides. Elements snap to each other and to the board; resize from any edge or handle; align, distribute, reorder, copy and paste, zoom and pan. Drag a field onto the board to show it.
+  - **Text** is Auto width (the box hugs the words and grows from its alignment, like an OBS text source) or Fixed width (a box the text wraps and shrinks inside). Fonts come from a list: the four that ship with CORBELscore, then the computer's own.
+  - **Pictures** arrive at their own size; one bigger than the board offers to fit itself.
+  - **Boards inside boards**: put a sponsor bug or a lower third inside the scorebug. It gets an On air switch on the control page, so the operator puts it up and takes it down.
+  - **Opacity** for every element, as a percentage.
+  - **Split view** shows your live controls under the board, so you can change scores and clocks while you design.
+  - Colours can follow fields such as `{home.color}`. Here too are:
   - **Logic**: SportzSuite-style conditions, such as "if `home.timeouts` changes by -1, animate the time-out graphic" or "if the clock has value 0:00, show FINAL". With rules (`0:00=FINAL`) and overrides they shape the text and XML files as well as the graphics. See [docs/logic.md](docs/logic.md).
   - **Animations**: thirty-one built-in moves (fly, wipe, fade, slide, pop, drop, flash, pulse, shake, bump) and your own recipes, previewed on the canvas.
 - **Live view**: any board, live, against checks, black or green, full screen or in a projector window on another display, with its browser-source URL one click away.
@@ -33,25 +39,25 @@ Also:
 
 - **Live data** from Sportzcast over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML / JSON file or URL. It connects only when you press Connect. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
 - **Templates**: basketball, hockey, soccer, football, volleyball, baseball, a general scoreboard and a blank project.
-- **1.x projects open directly.** They are converted, and the original file is never overwritten.
-- **Recovery.** Unsaved work is kept, and offered back if TeleScore closes unexpectedly.
+- **Recovery.** Unsaved work is kept, and offered back if CORBELscore closes unexpectedly.
+- **TeleScore projects open directly**, 1.x and 2.0 alike. They are converted, and the original file is never overwritten.
 
 Clocks keep time in milliseconds from the system clock, so they never drift and a pause keeps the fraction already run. Penalties count down only while their game clock runs.
 
 ## Run it
 
-On Windows 10 or 11 (64-bit), double-click **`TeleScore.bat`**. The first time, it downloads the Electron runtime (about 160 MB) from GitHub into a `runtime` folder, checks its SHA-256 and unpacks it; after that it just starts TeleScore. Nothing is installed on the computer and no Python or Node is needed. Drag a `.tsproj` file onto the launcher to open that project.
+On Windows 10 or 11 (64-bit), double-click **`CORBELscore.bat`**. The first time, it downloads the Electron runtime (about 160 MB) from GitHub into a `runtime` folder, checks its SHA-256 and unpacks it; after that it just starts CORBELscore. Nothing is installed on the computer and no Python or Node is needed. Drag a `.corbel` (or TeleScore `.tsproj`) file onto the launcher to open that project. Settings from TeleScore, including a saved Sportzcast token, are carried over on the first run.
 
 | Command | What it does |
 |---|---|
-| `TeleScore.bat` | Run TeleScore |
-| `TeleScore.bat test` | Run the test suite, then a check of the app window, PNG output and shortcuts |
-| `TeleScore.bat build` | Make a portable copy in `dist\TeleScore` (`TeleScore.exe`; copy the whole folder) |
-| `TeleScore.bat update` | Download the runtime again |
+| `CORBELscore.bat` | Run CORBELscore |
+| `CORBELscore.bat test` | Run the test suite, then a check of the app window, PNG output and shortcuts |
+| `CORBELscore.bat build` | Make a portable copy in `dist\CORBELscore` (`CORBELscore.exe`; copy the whole folder) |
+| `CORBELscore.bat update` | Download the runtime again |
 
 On other systems, with [Electron](https://www.electronjs.org/) 44 on the path: `electron .` in this folder.
 
-Without a desktop at all (a server, or to use TeleScore from a browser), run only the service with Node 22 or newer:
+Without a desktop at all (a server, or to use CORBELscore from a browser), run only the service with Node 22 or newer:
 
 ```
 node app/service/cli.js --port 5170 --preset Basketball
@@ -64,7 +70,7 @@ It prints the studio address with its key. File dialogs, projector windows, PNG 
 | Output | Where | Use |
 |---|---|---|
 | Text | `<folder>/text/home.score.txt` … | OBS Text (GDI+/FreeType) "Read from file" |
-| `telescore.xml` | file and `http://127.0.0.1:8130/telescore.xml` | XPression DataLinq, Chyron: `/telescore/home/score` |
+| `corbelscore.xml` | file and `http://127.0.0.1:8130/corbelscore.xml` | XPression DataLinq, Chyron: `/corbelscore/home/score` |
 | `vmix.xml` | file and URL | vMix Data Sources → XML, XPath `//row` |
 | `fields.xml` | file and URL | look-ups by key: `//field[@key='home.score']` (schema: `docs/schema/fields.xsd`) |
 | `state.json` | file and URL | anything |
@@ -72,7 +78,7 @@ It prints the studio address with its key. File dialogs, projector windows, PNG 
 | Remote control | `http://127.0.0.1:8130/api/action?do=add&field=home.score&amount=1` | Stream Deck, Companion |
 | PNG | `<folder>/images/<board>.png` | systems that load pictures |
 
-The default folder is `Documents/TeleScore Output/<project>`. The web server listens only on this computer unless you allow the network in Control → Edit → Outputs. On a network you should set a control token.
+The default folder is `Documents/CORBELscore Output/<project>`. The web server listens only on this computer unless you allow the network in Control → Edit → Outputs. On a network you should set a control token.
 
 ### Actions
 
@@ -106,7 +112,7 @@ The tests need nothing installed beyond Node 22:
 - **`test/sportzcast.test.js`**: fake MQTT brokers, legacy sockets and LiveXML files.
 - **`test/ui.test.js`**: drives the studio window in Chromium, if Playwright is installed (skipped otherwise).
 
-`TeleScore.bat test` runs the same suite inside the downloaded runtime, so Windows needs no Node.
+`CORBELscore.bat test` runs the same suite inside the downloaded runtime, so Windows needs no Node.
 
 ## Project layout
 
@@ -122,20 +128,12 @@ docs/         logic, Sportzcast, UI principles, OBS plugin plan, XSD for fields.
 
 There are no npm dependencies.
 
-The operator UI follows the Keystone Scorebook design fundamentals:
-- a nine-colour scheme derived by recipe;
-- flat panels with hairline borders;
-- Archivo at heavy weight in capitals for labels;
-- tabular figures;
-- words on buttons;
-- one accent kept for the main action.
-
-It also borrows from Rally: every status is a colour plus a word (RUNNING, LIVE, FAILING). Choose Keystone Dark, Keystone Light or Rally under Settings. See [docs/ui-principles.md](docs/ui-principles.md) for the reasoning behind the layout. On-air graphics use their own fixed broadcast palette.
+The look is CORBELscore's own design system ([docs/design-system.md](docs/design-system.md)): Basalt black, Limestone cream (Pantone P 179-1 U) and Patina cyan, with Brass for edit mode and Terracotta for errors; Red Hat Display, Text and Mono; flat surfaces and hairlines; words on buttons; every status a colour and a word. Choose Basalt (dark) or Limestone (light) under Settings. The reasoning behind the layout is in [docs/ui-principles.md](docs/ui-principles.md). Brand files (wordmark, lockup, icon) are in `app/assets/brand/`, rebuilt by `scripts/brand/build.py`.
 
 ## Credits
 
-TeleScore was created by the JumpShot team: riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035 and Glenn. Version 2 is a community rebuild.
+CORBELscore is built on TeleScore, created by the JumpShot team: riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035 and Glenn.
 
-The Archivo font is © The Archivo Project Authors, under the SIL Open Font License 1.1 (`app/assets/fonts/OFL.txt`).
+Red Hat Display, Red Hat Text and Red Hat Mono are © The Red Hat Project Authors (`app/assets/fonts/OFL-RedHat.txt`); Archivo is © The Archivo Project Authors (`app/assets/fonts/OFL-Archivo.txt`). All are under the SIL Open Font License 1.1.
 
 Licensed under the [GNU Affero General Public License v3](LICENSE).

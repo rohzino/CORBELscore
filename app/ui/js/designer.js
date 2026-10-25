@@ -3,19 +3,48 @@
 //   Middle the board, drawn by the same renderer OBS uses
 //   Right  properties of the selection, the board, a condition or an animation
 // Drag to move (snaps to the grid and to other elements, with guides), drag a
-// handle to resize, drag on empty space to select several. Arrow keys nudge.
+// handle or an edge to resize, drag on empty space to select several. Arrow
+// keys nudge. The board's edges are drawn like a document in a photo editor:
+// the area around it is pasteboard, dimmed, and is not part of the graphic.
 
 import { call, edit, fileUrl, on, store } from "./api.js";
 import { button, chip, clear, h, rerender } from "./dom.js";
 import { BoardView } from "/render/board-view.js";
-import { ELEMENT_DEFAULTS, align, distribute, makeElement, reorder } from "/core/board.js";
+import { ELEMENT_DEFAULTS, align, canNest, distribute, makeElement, reorder } from "/core/board.js";
 import { ELEMENT_ACTIONS, FIELD_ACTIONS, NO_VALUE_OPS, OPS, compareValue } from "/core/logic.js";
 import { EASINGS, makeAnimation, sample } from "/core/animation.js";
+import { BUNDLED_FONTS, DISPLAY_FONT } from "/core/fonts.js";
+import { defaultSize, findSpot } from "/core/layout.js";
 import { newId } from "/core/ids.js";
-import { attempt, check, claimKeys, colorInput, confirmDialog, menu, numberInput, remember, select, textInput, toast, ui } from "./ui.js";
+import { attempt, ask, check, claimKeys, colorInput, confirmDialog, dialog, menu, numberInput, percentInput, remember, select, textInput, toast, ui } from "./ui.js";
+import { mountControlPane } from "./control.js";
 
-const SNAP_PX = 6;          // screen pixels within which an edge snaps
+const SNAP_PX = 7;          // screen pixels within which an edge snaps
+const MOVE_PX = 3;          // a drag starts after this many screen pixels, so a click never nudges
 const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+const KIND_NAME = { text: "Text", box: "Box", image: "Picture", board: "Board" };
+
+// Fonts installed on this computer (Chromium's Local Font Access), loaded once on request.
+let localFonts = null;
+async function loadLocalFonts() {
+  if (localFonts) return localFonts;
+  if (!window.queryLocalFonts) throw new Error("This window cannot list the computer's fonts. Type the font's name instead.");
+  const list = await window.queryLocalFonts();
+  localFonts = [...new Set(list.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
+  return localFonts;
+}
+
+// A picture's own size in pixels, or null if it cannot be read.
+function naturalSize(src) {
+  return new Promise((resolve) => {
+    if (!src || src.includes("{")) return resolve(null);
+    const img = new Image();
+    const t = setTimeout(() => resolve(null), 5000);
+    img.onload = () => { clearTimeout(t); resolve(img.naturalWidth ? { w: img.naturalWidth, h: img.naturalHeight } : null); };
+    img.onerror = () => { clearTimeout(t); resolve(null); };
+    img.src = /^(https?:|data:|blob:)/.test(src) ? src : fileUrl(src);
+  });
+}
 
 export function mountDesigner(root) {
   const work = h("div.work");
@@ -24,14 +53,43 @@ export function mountDesigner(root) {
   const right = h("aside.side.right", { "aria-label": "Properties" });
   const toolbar = h("div.toolbar");
   const stageWrap = h("div.dz-scroll");
-  const host = h("div.dz-host.checker");
+  const host = h("div.dz-host");
+  const underlay = h("div.dz-board.checker");      // the board's own area: checks where it is transparent
+  host.append(underlay);
   const overlay = h("div.dz-overlay", { tabindex: 0, "aria-label": "Board canvas" });
   stageWrap.append(host, overlay);
-  center.append(toolbar, stageWrap);
+  const splitter = h("div.dz-splitter", { title: "Drag to resize", role: "separator", "aria-orientation": "horizontal" });
+  const pane = h("div.dz-split", { "aria-label": "Controls" });
+  center.append(toolbar, stageWrap, splitter, pane);
   work.append(left, center, right);
   root.append(work);
 
   const view = new BoardView(host, { assetUrl: fileUrl, show_all: true, animate: true });
+  view.onpaint = () => {
+    if (drag) return;
+    drawOverlay();
+    // Auto-width text knows its size only once it is drawn.
+    for (const sp of right.querySelectorAll("[data-auto-size]")) {
+      const r = view.rectOf(sp.dataset.autoSize);
+      if (r) sp.textContent = `${Math.round(r.w)} × ${Math.round(r.h)} px, from the text`;
+    }
+  };
+  let paneOff = null;
+  function applySplit() {
+    splitter.classList.toggle("hidden", !ui.split);
+    pane.classList.toggle("hidden", !ui.split);
+    pane.style.height = Math.max(160, Math.min(ui.splitH, center.clientHeight - 200 || ui.splitH)) + "px";
+    if (ui.split && !paneOff) paneOff = mountControlPane(pane);
+    if (!ui.split && paneOff) { paneOff(); paneOff = null; clear(pane); }
+  }
+  splitter.addEventListener("pointerdown", (e) => {
+    const y0 = e.clientY, h0 = pane.offsetHeight;
+    splitter.setPointerCapture(e.pointerId);
+    const move = (ev) => { ui.splitH = Math.max(160, Math.min(center.clientHeight - 200, h0 + y0 - ev.clientY)); pane.style.height = ui.splitH + "px"; };
+    const up = () => { splitter.removeEventListener("pointermove", move); splitter.removeEventListener("pointerup", up); remember(); };
+    splitter.addEventListener("pointermove", move);
+    splitter.addEventListener("pointerup", up);
+  });
   let board = null;          // working copy of the board being designed
   let zoom = null;           // null = fit; else {s, x, y}
   let showValues = true;
@@ -54,6 +112,7 @@ export function mountDesigner(root) {
     // Project files keep only what differs from the defaults; the designer needs every property.
     if (board) board.elements = board.elements.map((e) => ({ ...structuredClone(ELEMENT_DEFAULTS), ...e }));
     ui.gsel = ui.gsel.filter((id) => board?.elements.some((e) => e.id === id));
+    view.setBoards(project().boards);
     view.setBoard(board, project().animations);
     applyValues();
     applyZoom();
@@ -75,6 +134,8 @@ export function mountDesigner(root) {
   const toScreen = (bx, by) => { const o = org(); return { x: o.x + bx * o.s, y: o.y + by * o.s }; };
   const el = (id) => board?.elements.find((e) => e.id === id);
   const selected = () => ui.gsel.map(el).filter(Boolean);
+  // Where an element really is (Auto text is as wide as its text).
+  const rect = (e) => view.rectOf(e.id) ?? { x: e.x, y: e.y, w: e.w, h: e.h };
 
   function applyZoom() {
     view.setView(zoom);
@@ -96,14 +157,39 @@ export function mountDesigner(root) {
     clear(overlay);
     if (!board) return;
     const o = org();
+    // The board's frame: everything outside it is pasteboard, dimmed.
+    const tl = toScreen(0, 0), bw = board.width * o.s, bh = board.height * o.s;
+    const W = overlay.clientWidth, H = overlay.clientHeight;
+    Object.assign(underlay.style, { left: tl.x + "px", top: tl.y + "px", width: bw + "px", height: bh + "px" });
+    for (const [x, y, w, hh] of [[0, 0, W, tl.y], [0, tl.y + bh, W, H - tl.y - bh], [0, tl.y, tl.x, bh], [tl.x + bw, tl.y, W - tl.x - bw, bh]]) {
+      if (w > 0 && hh > 0) overlay.append(h("div.dz-mask", { style: { left: x + "px", top: y + "px", width: w + "px", height: hh + "px" } }));
+    }
+    overlay.append(h("div.dz-frame", { style: { left: tl.x + "px", top: tl.y + "px", width: bw + "px", height: bh + "px" } },
+      h("span.dz-frame-label", `${board.name} · ${board.width} × ${board.height}`)));
+    if (ui.safe) {
+      for (const [inset, name] of [[0.035, "Action safe"], [0.05, "Title safe"]]) {
+        overlay.append(h("div.dz-safe", { title: name, style: { left: tl.x + bw * inset + "px", top: tl.y + bh * inset + "px", width: bw * (1 - 2 * inset) + "px", height: bh * (1 - 2 * inset) + "px" } }));
+      }
+      overlay.append(h("div.dz-safe.centre", { style: { left: tl.x + bw / 2 + "px", top: tl.y + bh / 2 + "px" } }));
+    }
     for (const e of selected()) {
-      const p = toScreen(e.x, e.y);
-      const box = h(`div.dz-sel${ui.gsel.length === 1 ? ".primary" : ""}`, { style: { left: p.x + "px", top: p.y + "px", width: e.w * o.s + "px", height: e.h * o.s + "px" } });
+      const r = rect(e);
+      const p = toScreen(r.x, r.y), sw = r.w * o.s, sh = r.h * o.s;
+      const box = h(`div.dz-sel${ui.gsel.length === 1 ? ".primary" : ""}`, { style: { left: p.x + "px", top: p.y + "px", width: sw + "px", height: sh + "px" } },
+        ui.gsel.length === 1 && drag?.kind === "resize" ? h("span.dz-size", `${Math.round(r.w)} × ${Math.round(r.h)}`) : null);
       overlay.append(box);
       if (ui.gsel.length === 1 && !e.locked) {
+        // Whole edges resize too, so there is no small target to hunt for.
+        for (const hd of ["n", "s", "e", "w"]) {
+          const st = hd === "n" || hd === "s"
+            ? { left: p.x + "px", top: (hd === "n" ? p.y : p.y + sh) + "px", width: sw + "px" }
+            : { left: (hd === "w" ? p.x : p.x + sw) + "px", top: p.y + "px", height: sh + "px" };
+          overlay.append(h(`div.dz-edge.${hd === "n" || hd === "s" ? "h" : "v"}`, { "data-h": hd, style: { ...st, cursor: `${hd}-resize` } }));
+        }
         for (const hd of HANDLES) {
-          const hx = hd.includes("w") ? 0 : hd.includes("e") ? e.w * o.s : (e.w * o.s) / 2;
-          const hy = hd.includes("n") ? 0 : hd.includes("s") ? e.h * o.s : (e.h * o.s) / 2;
+          const hx = hd.includes("w") ? 0 : hd.includes("e") ? sw : sw / 2;
+          const hy = hd.includes("n") ? 0 : hd.includes("s") ? sh : sh / 2;
+          if (hd.length === 1 && (hd === "n" || hd === "s" ? sw : sh) < 36) continue;   // too small for a middle handle: the edge does it
           overlay.append(h("div.dz-handle", { "data-h": hd, style: { left: p.x + hx + "px", top: p.y + hy + "px", cursor: `${hd}-resize` } }));
         }
       }
@@ -116,10 +202,12 @@ export function mountDesigner(root) {
   }
 
   function hit(bx, by) {
+    const pad = 3 / org().s;   // a few screen pixels of grace around thin elements
     for (let i = board.elements.length - 1; i >= 0; i--) {
       const e = board.elements[i];
       if (e.visible === false || e.locked) continue;
-      if (bx >= e.x && bx <= e.x + e.w && by >= e.y && by <= e.y + e.h) return e;
+      const r = rect(e);
+      if (bx >= r.x - pad && bx <= r.x + r.w + pad && by >= r.y - pad && by <= r.y + r.h + pad) return e;
     }
     return null;
   }
@@ -128,11 +216,10 @@ export function mountDesigner(root) {
   function snapMove(ids, dx, dy) {
     if (!snapOn) return { dx, dy, guides: [] };
     const set = new Set(ids);
-    const moving = board.elements.filter((e) => set.has(e.id));
-    const x1 = Math.min(...moving.map((e) => drag.start[e.id].x)) + dx, y1 = Math.min(...moving.map((e) => drag.start[e.id].y)) + dy;
-    const x2 = Math.max(...moving.map((e) => drag.start[e.id].x + e.w)) + dx, y2 = Math.max(...moving.map((e) => drag.start[e.id].y + e.h)) + dy;
-    const xs = [0, board.width / 2, board.width], ys = [0, board.height / 2, board.height];
-    for (const e of board.elements) if (!set.has(e.id) && e.visible !== false) { xs.push(e.x, e.x + e.w / 2, e.x + e.w); ys.push(e.y, e.y + e.h / 2, e.y + e.h); }
+    const rs = ids.map((id) => drag.start[id].r);
+    const x1 = Math.min(...rs.map((r) => r.x)) + dx, y1 = Math.min(...rs.map((r) => r.y)) + dy;
+    const x2 = Math.max(...rs.map((r) => r.x + r.w)) + dx, y2 = Math.max(...rs.map((r) => r.y + r.h)) + dy;
+    const [xs, ys] = snapLines(set);
     const tol = SNAP_PX / org().s;
     const best = (cands, own) => {
       let pick = null;
@@ -149,6 +236,26 @@ export function mountDesigner(root) {
 
   const sn = (v) => (snapOn ? Math.round(v / grid) * grid : Math.round(v));
 
+  // Lines worth snapping to: the board's edges and centre, other elements' edges and centres.
+  function snapLines(skip) {
+    const xs = [0, board.width / 2, board.width], ys = [0, board.height / 2, board.height];
+    for (const e of board.elements) {
+      if (skip.has(e.id) || e.visible === false) continue;
+      const r = rect(e);
+      xs.push(r.x, r.x + r.w / 2, r.x + r.w); ys.push(r.y, r.y + r.h / 2, r.y + r.h);
+    }
+    return [xs, ys];
+  }
+  // One edge being dragged: snap to a line nearby, else to the grid.
+  function snapEdge(v, lines, axis, guides) {
+    if (!snapOn) return Math.round(v);
+    const tol = SNAP_PX / org().s;
+    let best = null;
+    for (const c of lines) if (Math.abs(c - v) <= tol && (best === null || Math.abs(c - v) < Math.abs(best - v))) best = c;
+    if (best !== null) { guides.push([axis, best]); return best; }
+    return Math.round(v / grid) * grid;
+  }
+
   overlay.addEventListener("pointerdown", (e) => {
     if (!board) return;
     overlay.focus({ preventScroll: true });
@@ -157,14 +264,16 @@ export function mountDesigner(root) {
       drag = { kind: "pan", sx: e.clientX, sy: e.clientY, z: { ...(zoom ?? { s: view.scale, ...org() }) } };
     } else if (e.button === 0 && e.target.dataset.h) {
       const t = selected()[0];
-      drag = { kind: "resize", h: e.target.dataset.h, b0: toBoard(e.clientX, e.clientY), orig: { x: t.x, y: t.y, w: t.w, h: t.h }, id: t.id };
+      // Auto-width text becomes a fixed box the moment its edge is dragged, like switching on custom extents.
+      if (t.kind === "text" && t.extent === "auto") Object.assign(t, rect(t), { extent: "fixed" });
+      drag = { kind: "resize", h: e.target.dataset.h, b0: toBoard(e.clientX, e.clientY), orig: { x: t.x, y: t.y, w: t.w, h: t.h }, id: t.id, sx: e.clientX, sy: e.clientY };
     } else if (e.button === 0) {
       const p = toBoard(e.clientX, e.clientY);
       const target = hit(p.x, p.y);
       if (target) {
         if (e.shiftKey || e.ctrlKey) ui.gsel = ui.gsel.includes(target.id) ? ui.gsel.filter((x) => x !== target.id) : [...ui.gsel, target.id];
         else if (!ui.gsel.includes(target.id)) ui.gsel = [target.id];
-        drag = { kind: "move", b0: p, start: Object.fromEntries(selected().filter((x) => !x.locked).map((x) => [x.id, { x: x.x, y: x.y }])), moved: false };
+        drag = { kind: "move", b0: p, sx: e.clientX, sy: e.clientY, start: Object.fromEntries(selected().filter((x) => !x.locked).map((x) => [x.id, { x: x.x, y: x.y, r: rect(x) }])), moved: false };
       } else {
         if (!e.shiftKey) ui.gsel = [];
         drag = { kind: "band", sx: e.clientX - r.left, sy: e.clientY - r.top, keep: [...ui.gsel] };
@@ -183,6 +292,7 @@ export function mountDesigner(root) {
       return;
     }
     const p = toBoard(e.clientX, e.clientY);
+    if ((drag.kind === "move" || drag.kind === "resize") && !drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < MOVE_PX) return;
     if (drag.kind === "move") {
       const ids = Object.keys(drag.start);
       if (!ids.length) return;
@@ -194,15 +304,27 @@ export function mountDesigner(root) {
     } else if (drag.kind === "resize") {
       const t = el(drag.id), o = drag.orig, hd = drag.h;
       const dx = p.x - drag.b0.x, dy = p.y - drag.b0.y;
-      let { x, y, w, h: hh } = o;
-      if (hd.includes("e")) w = Math.max(4, sn(o.x + o.w + dx) - o.x);
-      if (hd.includes("s")) hh = Math.max(4, sn(o.y + o.h + dy) - o.y);
-      if (hd.includes("w")) { const nx = Math.min(o.x + o.w - 4, sn(o.x + dx)); w = o.x + o.w - nx; x = nx; }
-      if (hd.includes("n")) { const ny = Math.min(o.y + o.h - 4, sn(o.y + dy)); hh = o.y + o.h - ny; y = ny; }
-      Object.assign(t, { x, y, w, h: hh });
+      const guides = [];
+      const [xs, ys] = snapLines(new Set([t.id]));
+      let x1 = o.x, y1 = o.y, x2 = o.x + o.w, y2 = o.y + o.h;
+      if (hd.includes("e")) x2 = Math.max(x1 + 4, snapEdge(o.x + o.w + dx, xs, "v", guides));
+      if (hd.includes("w")) x1 = Math.min(x2 - 4, snapEdge(o.x + dx, xs, "v", guides));
+      if (hd.includes("s")) y2 = Math.max(y1 + 4, snapEdge(o.y + o.h + dy, ys, "h", guides));
+      if (hd.includes("n")) y1 = Math.min(y2 - 4, snapEdge(o.y + dy, ys, "h", guides));
+      // Corners keep the shape of pictures and boards; Shift flips that for any element.
+      const keep = hd.length === 2 && (["image", "board"].includes(t.kind) !== e.shiftKey) && o.w > 0 && o.h > 0;
+      if (keep) {
+        const ratio = o.w / o.h;
+        let w = x2 - x1, hh = y2 - y1;
+        if (Math.abs(w - o.w) / o.w >= Math.abs(hh - o.h) / o.h) hh = w / ratio; else w = hh * ratio;
+        if (hd.includes("w")) x1 = x2 - w; else x2 = x1 + w;
+        if (hd.includes("n")) y1 = y2 - hh; else y2 = y1 + hh;
+        guides.length = 0;
+      }
+      Object.assign(t, { x: Math.round(x1), y: Math.round(y1), w: Math.max(4, Math.round(x2 - x1)), h: Math.max(4, Math.round(y2 - y1)) });
       drag.moved = true;
       view.setBoard(board, project().animations); applyValuesQuiet();
-      drawOverlay();
+      drawOverlay(guides);
     } else if (drag.kind === "band") {
       const r = overlay.getBoundingClientRect();
       const x = e.clientX - r.left, y = e.clientY - r.top;
@@ -247,7 +369,7 @@ export function mountDesigner(root) {
     const p = toBoard(e.clientX, e.clientY);
     const f = project().fields.find((x) => x.key === key);
     const kind = f?.type === "image" ? "image" : "text";
-    addElement(kind, { x: sn(p.x - 100), y: sn(p.y - 40), ...(kind === "image" ? { src: `{${key}}` } : { text: `{${key}}` }), name: f?.label ?? key });
+    addElement(kind, { x: sn(p.x - 100), y: sn(p.y - 40), ...(kind === "image" ? { src: `{${key}}` } : { text: `{${key}}`, extent: "fixed" }), name: f?.label ?? key });
   });
 
   function applyValuesQuiet() { view.setValues(valuesForView(), store.snapshot?.fx ?? {}); }
@@ -255,13 +377,81 @@ export function mountDesigner(root) {
   // ---- element commands -------------------------------------------------------------------------
   function addElement(kind, extra = {}) {
     if (!board) return;
-    const base = { kind, name: { text: "Text", box: "Box", image: "Picture" }[kind], x: sn(board.width / 2 - 150), y: sn(board.height / 2 - 50), w: 300, h: 100 };
-    if (kind === "text") Object.assign(base, { text: "Text", size: 64, weight: 900, color: "#e8f1ec" });
-    if (kind === "box") Object.assign(base, { fill: "#18211e", radius: 3 });
+    const base = { kind, name: KIND_NAME[kind], x: sn(board.width / 2 - 150), y: sn(board.height / 2 - 50), w: 300, h: 100 };
+    // New text hugs what it says (Auto width); a field dropped on the board gets a fixed box instead.
+    if (kind === "text") Object.assign(base, { text: "Text", font: DISPLAY_FONT, size: 72, weight: 700, color: "#f5f5f1", extent: "auto" });
+    if (kind === "box") Object.assign(base, { fill: "#1a1d1d", radius: 4 });
     const e = makeElement({ ...base, ...extra });
     board.elements.push(e);
     ui.gsel = [e.id];
-    commit(`Add ${base.name.toLowerCase()}`);
+    return commit(`Add ${base.name.toLowerCase()}`);
+  }
+
+  // Size a picture to its own pixels. If it is bigger than the board, offer to fit it.
+  async function sizePicture(path, e = null) {
+    const n = await naturalSize(path);
+    if (!n) return null;
+    let { w, h: hh } = n;
+    if (w > board.width || hh > board.height) {
+      const k = Math.min(board.width / w, board.height / hh);
+      const fit = await dialog("Bigger than the board", h("p.hint", { style: { margin: 0 } },
+        `This picture is ${w} × ${hh}; the board is ${board.width} × ${board.height}. Fit it inside the board (${Math.round(w * k)} × ${Math.round(hh * k)}), or keep it at full size and let the edges fall off?`),
+        [{ label: "Keep full size", value: false }, { label: "Fit to the board", value: true, role: "accent" }]);
+      if (fit === null) return null;
+      if (fit) { w = Math.round(w * k); hh = Math.round(hh * k); }
+    }
+    const cx = e ? e.x + e.w / 2 : board.width / 2, cy = e ? e.y + e.h / 2 : board.height / 2;
+    let x = Math.round(cx - w / 2), y = Math.round(cy - hh / 2);
+    if (w <= board.width && hh <= board.height) { x = Math.max(0, Math.min(board.width - w, x)); y = Math.max(0, Math.min(board.height - hh, y)); }
+    else if (w >= board.width && hh >= board.height) { x = Math.round((board.width - w) / 2); y = Math.round((board.height - hh) / 2); }
+    return { x, y, w, h: hh };
+  }
+
+  // Picture: choose the file first, then it arrives at its own size. Without a
+  // file dialog (in a browser), an empty picture to fill in.
+  async function addPicture() {
+    if (!board) return;
+    if (!store.state.host.dialogs) return addElement("image");
+    const r = await attempt(() => call("/api/pick", { kind: "image" }));
+    if (!r?.path) return;
+    const size = await sizePicture(r.path);
+    addElement("image", { src: r.path, name: r.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, ""), ...(size ?? {}) });
+  }
+
+  async function setPicture(path) {
+    const e = selected()[0];
+    if (!e) return;
+    const size = await sizePicture(path, e);
+    Object.assign(e, { src: path }, size ?? {});
+    commit("Picture");
+  }
+
+  // A board inside this one, with an On air switch on the control page so the
+  // operator puts it up and takes it down.
+  async function addBoardInside(inner) {
+    const p = project();
+    let w = inner.width, hh = inner.height;
+    const k = Math.min(1, board.width / w, board.height / hh);
+    w = Math.round(w * k); hh = Math.round(hh * k);
+    const slug = inner.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "board";
+    let key = `onair.${slug}`, i = 2;
+    while (p.fields.some((f) => f.key === key)) key = `onair.${slug}_${i++}`;
+    const e = makeElement({ kind: "board", board: inner.id, name: inner.name, x: Math.round((board.width - w) / 2), y: Math.round((board.height - hh) / 2), w, h: hh,
+      show_when: key, anim_in: "", anim_out: "" });
+    const next = structuredClone(board);
+    next.elements.push(e);
+    const L = structuredClone(p.layout);
+    const page = L.pages.find((x) => x.id === ui.page) ?? L.pages[0];
+    const [tw, th] = defaultSize("field", "toggle");
+    const spot = findSpot(page.tiles, tw, th);
+    page.tiles.push({ id: newId(), kind: "field", field: key, x: spot.x, y: spot.y, w: tw, h: th });
+    ui.gsel = [e.id];
+    const ok = await attempt(() => edit([
+      { op: "field.add", field: { type: "toggle", key, label: `${inner.name} on air`, value: true, default: true, on_text: "On air", off_text: "Off air" } },
+      { op: "board.put", board: next },
+      { op: "layout.put", layout: L },
+    ], `Put ${inner.name} inside ${board.name}`));
+    if (ok) toast(`“${inner.name}” is inside “${board.name}”. Its On air switch is on the ${page.name} page.`);
   }
   function removeSelected() {
     if (!ui.gsel.length) return;
@@ -284,7 +474,7 @@ export function mountDesigner(root) {
   const releaseKeys = claimKeys((e, combo) => {
     if (ui.tab !== "view" || ui.viewSection !== "graphics" || !board) return false;
     const inBox = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-    if (inBox || document.activeElement?.closest?.(".side")) return false;
+    if (inBox || document.activeElement?.closest?.(".side, .dz-split")) return false;
     if (combo === "Ctrl+Z") { designUndo(); return true; }
     if (combo === "Ctrl+Y" || combo === "Ctrl+Shift+Z") { designRedo(); return true; }
     if (combo === "Ctrl+A") { ui.gsel = board.elements.filter((x) => !x.locked && x.visible !== false).map((x) => x.id); renderRight(); renderLeft(true); drawOverlay(); return true; }
@@ -324,23 +514,39 @@ export function mountDesigner(root) {
     const st = store.status;
     const n = ui.gsel.length;
     toolbar.append(
-      button("Text", () => addElement("text"), { title: "Add a text element" }), button("Box", () => addElement("box")), button("Picture", () => addElement("image")),
+      button("Text", () => addElement("text"), { title: "Add text. Its box fits what it says." }), button("Box", () => addElement("box"), { title: "Add a box" }),
+      button("Picture", addPicture, { title: "Choose a picture; it arrives at its own size" }),
+      button("Board", (e) => {
+        const p = project();
+        const options = p.boards.filter((b) => b.id !== board.id);
+        if (!options.length) return toast("Make another board first (Board ▸ +), then put it in here.");
+        menu(e.currentTarget, [{ title: "Put a board inside this one" }, ...options.map((b) => ({
+          label: `${b.name} · ${b.width}×${b.height}`, disabled: !canNest(p.boards, board.id, b.id), run: () => addBoardInside(b) }))]);
+      }, { title: "Show another board inside this one, with an On air switch in Control" }),
       h("span.sep"),
-      button("Align", (e) => menu(e.currentTarget, [
-        ...[["Left", "left"], ["Centre", "hcenter"], ["Right", "right"], ["Top", "top"], ["Middle", "vcenter"], ["Bottom", "bottom"]].map(([l, how]) => ({ label: `Align ${l.toLowerCase()}`, run: () => arrange((b, ids) => align(b, ids, how), `Align ${l.toLowerCase()}`) })),
+      // One "Arrange" menu instead of four buttons: align, distribute, order, duplicate.
+      button("Arrange ▾", (e) => menu(e.currentTarget, [
+        { title: n === 1 ? "Align to the board" : "Align to each other" },
+        ...[["Left", "left"], ["Centre", "hcenter"], ["Right", "right"], ["Top", "top"], ["Middle", "vcenter"], ["Bottom", "bottom"]].map(([l, how]) => ({ label: l, run: () => arrange((b, ids) => align(b, ids, how), `Align ${l.toLowerCase()}`) })),
         "-", { label: "Distribute across", disabled: n < 3, run: () => arrange((b, ids) => distribute(b, ids, "h"), "Distribute") },
         { label: "Distribute down", disabled: n < 3, run: () => arrange((b, ids) => distribute(b, ids, "v"), "Distribute") },
-      ]), { disabled: !n, title: "One element aligns to the board; several align to each other" }),
-      button("Order", (e) => menu(e.currentTarget, [["Bring to front", "front"], ["Bring forward", "forward"], ["Send backward", "backward"], ["Send to back", "back"]].map(([l, w]) =>
-        ({ label: l, run: () => { for (const id of [...ui.gsel]) reorder(board, id, w); commit(l); } }))), { disabled: !n }),
-      button("Duplicate", () => duplicateSelected(), { disabled: !n, title: "Ctrl+D" }),
-      button("Delete", removeSelected, { role: "alert", disabled: !n, title: "Delete" }),
+        "-", ...[["Bring to front", "front"], ["Bring forward", "forward"], ["Send backward", "backward"], ["Send to back", "back"]].map(([l, w]) =>
+          ({ label: l, run: () => { for (const id of [...ui.gsel]) reorder(board, id, w); commit(l); } })),
+        "-", { label: "Duplicate", kbd: "Ctrl+D", run: () => duplicateSelected() },
+      ]), { disabled: !n, title: "Align, order and duplicate the selection" }),
+      button("Delete", removeSelected, { role: "alert", disabled: !n, title: "Delete (Del)" }),
       h("span.sep"),
       button("Undo", designUndo, { disabled: !st.canUndo, title: st.canUndo ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Nothing to undo" }),
       button("Redo", designRedo, { disabled: !st.canRedo, title: st.canRedo ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Nothing to redo" }),
       h("span.spacer"),
-      check("Values", showValues, (v) => { showValues = v; applyValues(); }, { title: "Off shows the templates, such as {home.score}" }),
-      check("Snap", snapOn, (v) => { snapOn = v; }, { title: "Snap to a 10 px grid and to other elements. Hold Alt and drag to pan." }));
+      button("Show ▾", (e) => menu(e.currentTarget, [
+        { label: `${showValues ? "☑" : "☐"} Live values`, run: () => { showValues = !showValues; applyValues(); } },
+        { label: `${snapOn ? "☑" : "☐"} Snap to grid and edges`, run: () => { snapOn = !snapOn; } },
+        { label: `${ui.safe ? "☑" : "☐"} Safe areas`, run: () => { ui.safe = !ui.safe; remember(); drawOverlay(); } },
+      ]), { title: "Live values or {templates}, snapping, title- and action-safe guides" }),
+      button("Split view", () => { ui.split = !ui.split; remember(); applySplit(); renderToolbar(); requestAnimationFrame(() => view.fit()); },
+        { cls: ui.split ? "on" : "", title: "Show your controls under the board, to change values while you design" }));
+    toolbar.querySelector(".btn.on")?.setAttribute("aria-pressed", "true");
     clear(zoomBar);
     zoomBar.append(button("−", () => setZoom((zoom?.s ?? view.scale) / 1.25), { cls: "btn-sm", title: "Zoom out (Ctrl+wheel)" }), zoomLabel,
       button("+", () => setZoom((zoom?.s ?? view.scale) * 1.25), { cls: "btn-sm", title: "Zoom in" }),
@@ -362,8 +568,8 @@ export function mountDesigner(root) {
     const boardRow = h("div.row",
       select(p.boards.map((b) => [b.id, `${b.name} · ${b.width}×${b.height}`]), ui.board, (v) => { ui.board = v; ui.gsel = []; remember(); load(); renderAll(); }, { k: "g-board" }),
       button("+", (e) => menu(e.currentTarget, [
-        { label: "New blank board", run: async () => { const r = await attempt(() => edit({ op: "board.add", board: { name: `Board ${p.boards.length + 1}` } }, "New board")); if (r) { ui.board = r.results[0]; remember(); } } },
-        { label: "Copy of this board", run: async () => { const r = await attempt(() => edit({ op: "board.add", copyOf: ui.board }, "Copy board")); if (r) { ui.board = r.results[0]; remember(); } } },
+        { label: "New blank board", run: async () => { const r = await attempt(() => edit({ op: "board.add", board: { name: `Board ${p.boards.length + 1}` } }, "New board")); if (r) { ui.board = r.results[0]; ui.gsel = []; remember(); load(); renderAll(); } } },
+        { label: "Copy of this board", run: async () => { const r = await attempt(() => edit({ op: "board.add", copyOf: ui.board }, "Copy board")); if (r) { ui.board = r.results[0]; ui.gsel = []; remember(); load(); renderAll(); } } },
         "-", { label: "Delete this board", disabled: p.boards.length < 2, run: async () => {
           if (await confirmDialog("Delete board", `Delete “${board.name}”? Browser sources showing it stop working.`, "Delete", "danger")) attempt(() => edit({ op: "board.remove", id: ui.board }, "Delete board"));
         } },
@@ -372,12 +578,12 @@ export function mountDesigner(root) {
       const sel = ui.gsel.includes(e.id);
       return h(`div.item${sel ? ".sel" : ""}`, { tabindex: 0,
         onclick: (ev) => { ui.gsel = ev.shiftKey || ev.ctrlKey ? (sel ? ui.gsel.filter((x) => x !== e.id) : [...ui.gsel, e.id]) : [e.id]; renderLeft(true); renderRight(); drawOverlay(); renderToolbar(); } },
-        h("span.typ", { style: { width: "34px" } }, e.kind),
+        h("span.typ", { style: { width: "58px", flex: "none" } }, KIND_NAME[e.kind] ?? e.kind),
         h("span.name", { title: e.text || e.src || "" }, e.name || e.text || e.kind),
         e.show_when ? h("span.typ", { title: `Shown while ${e.show_when} is on` }, "if") : null,
-        h("button.btn.btn-ghost.btn-sm", { type: "button", title: e.visible === false ? "Hidden in every output. Click to show." : "Click to hide everywhere",
+        h(`button.btn.btn-ghost.btn-sm.lyr${e.visible === false ? ".on" : ""}`, { type: "button", title: e.visible === false ? "Hidden in every output. Click to show." : "Click to hide everywhere",
           onclick: (ev) => { ev.stopPropagation(); el(e.id).visible = e.visible === false; commit(e.visible === false ? "Show" : "Hide"); } }, e.visible === false ? "Hidden" : "Shown"),
-        h("button.btn.btn-ghost.btn-sm", { type: "button", title: e.locked ? "Locked: cannot be selected on the canvas" : "Lock it so clicks pass through",
+        h(`button.btn.btn-ghost.btn-sm.lyr${e.locked ? ".on" : ""}`, { type: "button", title: e.locked ? "Locked: cannot be selected on the canvas" : "Lock it so clicks pass through",
           onclick: (ev) => { ev.stopPropagation(); el(e.id).locked = !e.locked; commit(e.locked ? "Unlock" : "Lock"); } }, e.locked ? "Locked" : "Lock"));
     });
     const fields = p.fields.map((f) => h("div.item", { draggable: true, title: `{${f.key}} · drag onto the board`,
@@ -385,7 +591,7 @@ export function mountDesigner(root) {
       ondblclick: () => addElement(f.type === "image" ? "image" : "text", f.type === "image" ? { src: `{${f.key}}`, name: f.label } : { text: `{${f.key}}`, name: f.label }) },
       h("span.grip", "⋮⋮"), h("div.grow", h("div.name", f.label), h("div.sub.mono", `{${f.key}}`))));
     return [h("div.group-title", h("span.caps", "Board")), boardRow,
-      h("div.group-title", h("span.caps", "Layers · top is in front")), layers.length ? h("div.list", layers) : h("p.hint", "Empty. Add Text, Box or Picture from the toolbar, or drag a field onto the board."),
+      h("div.group-title", h("span.caps", "Layers · top is in front")), layers.length ? h("div.list", layers) : h("p.hint", "Empty. Add Text, Box, Picture or Board from the toolbar, or drag a field onto the board."),
       h("div.group-title", h("span.caps", "Fields · drag onto the board")), h("div.list", fields)];
   }
 
@@ -583,32 +789,60 @@ export function mountDesigner(root) {
     const animSel = (k, label, kinds) => [h("label", label), select([["", "None"], ...(p.library ?? []).filter((a) => kinds.includes(a.kind)).map((a) => [a.name, a.name])], e[k], (v) => put({ [k]: v }), { k: `el-${k}` })];
     const toggles = p.fields.filter((f) => ["toggle", "text", "counter", "image"].includes(f.type));
     const fieldKeys = p.fields.map((f) => f.key);
-    const out = [h("div.section-title", many ? `${sel.length} elements` : { text: "Text", box: "Box", image: "Picture" }[e.kind])];
-    if (!many) out.push(h("div.form", ...t("name", "Name", { placeholder: e.kind }), ...n("x", "X", { suffix: "px" }), ...n("y", "Y", { suffix: "px" }),
-      ...n("w", "Width", { min: 1, suffix: "px" }), ...n("h", "Height", { min: 1, suffix: "px" })));
+    const out = [h("div.section-title", many ? `${sel.length} elements` : KIND_NAME[e.kind])];
+    const auto = e.kind === "text" && e.extent === "auto";
+    if (!many) out.push(h("div.form", ...t("name", "Name", { placeholder: KIND_NAME[e.kind] }), ...n("x", "X", { suffix: "px" }), ...n("y", "Y", { suffix: "px" }),
+      ...(auto ? [h("label", "Size"), h("span.hint", { "data-auto-size": e.id }, (() => { const r = rect(e); return `${Math.round(r.w)} × ${Math.round(r.h)} px, from the text`; })())]
+        : [...n("w", "Width", { min: 1, suffix: "px" }), ...n("h", "Height", { min: 1, suffix: "px" })])));
+    // Opacity for anything: drag to see it, release to keep it.
+    out.push(h("div.form", h("label", "Opacity"), percentInput(e.opacity, (v) => put({ opacity: v }, "Opacity"),
+      { k: "el-opacity", title: "Opacity", preview: (v) => { for (const x of selected()) x.opacity = v; view.setBoard(board, project().animations); applyValuesQuiet(); } })));
     if (e.kind === "text") {
       const tpl = h("input.input", { value: e.text, "data-k": "el-text", spellcheck: false, list: "ts-keys" });
       tpl.addEventListener("change", () => put({ text: tpl.value }, "Text"));
       out.push(h("div.panel", h("h3", "Text"), h("div.form",
         h("label", "Text"), tpl, h("div.hint", "Type, or put a field in braces: {home.score}. {{ and }} are braces."),
-        ...t("font", "Font"), ...n("size", "Size", { min: 4, max: 2000, suffix: "px max" }),
+        h("label", "Font"), fontPicker(e.font, (v) => put({ font: v }, "Font")),
+        ...n("size", "Size", { min: 4, max: 2000, suffix: "px" }),
         h("label", "Weight"), select([300, 400, 500, 600, 700, 800, 900].map((w) => [w, String(w)]), e.weight, (v) => put({ weight: Number(v) }), { k: "el-weight" }),
         ...c("color", "Colour", { placeholder: "#ffffff or {home.color}" }),
         h("label", "Align"), h("div.row", select([["left", "Left"], ["center", "Centre"], ["right", "Right"]], e.align, (v) => put({ align: v }), { k: "el-align" }),
           select([["top", "Top"], ["middle", "Middle"], ["bottom", "Bottom"]], e.valign, (v) => put({ valign: v }), { k: "el-valign" })),
         ...n("tracking", "Spacing", { step: 0.01, suffix: "em" }), ...n("padding", "Padding", { min: 0, suffix: "px" }),
-        h("div.full.col", check("Shrink to fit the box", e.fit, (v) => put({ fit: v }), { k: "el-fit" }), check("Capitals", e.uppercase, (v) => put({ uppercase: v }), { k: "el-up" }),
-          check("Italic", e.italic, (v) => put({ italic: v }), { k: "el-it" }), check("Even-width numbers", e.tabular, (v) => put({ tabular: v }), { k: "el-tab" })))));
+        h("div.full.col", check("Capitals", e.uppercase, (v) => put({ uppercase: v }), { k: "el-up" }),
+          check("Italic", e.italic, (v) => put({ italic: v }), { k: "el-it" }), check("Even-width numbers", e.tabular, (v) => put({ tabular: v }), { k: "el-tab" })))),
+      // Text extents, as in OBS: Auto hugs the text; Fixed is a box the text lives in.
+      h("div.panel", h("h3", "Text box"),
+        h("div.seg", { role: "group", "aria-label": "Text box" },
+          h("button", { type: "button", "aria-pressed": String(auto), onclick: () => { if (!auto) put({ extent: "auto" }, "Auto width"); } }, "Auto width"),
+          h("button", { type: "button", "aria-pressed": String(!auto), onclick: () => { if (auto) { const r = rect(e); put({ extent: "fixed", x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) }, "Fixed width"); } } }, "Fixed width")),
+        auto ? h("p.hint", "The box fits the text and grows from its alignment: left-aligned text grows to the right, centred text both ways. Drag an edge to fix its width.")
+          : h("div.col", { style: { marginTop: "10px" } },
+            check("Wrap long lines", e.wrap, (v) => put({ wrap: v }, "Wrap"), { k: "el-wrap" }),
+            check("Shrink to fit the box", e.fit, (v) => put({ fit: v }, "Shrink to fit"), { k: "el-fit" }),
+            h("p.hint", { style: { margin: 0 } }, "Good for scores and names that must never spill out of their space."))));
     }
     if (e.kind === "image") {
       out.push(h("div.panel", h("h3", "Picture"), h("div.form",
-        h("label", "Picture"), h("div.row", textInput(e.src, (v) => put({ src: v.trim() }), { k: "el-src", placeholder: "{home.logo} or a file" }),
-          store.state.host.dialogs ? button("Choose…", async () => { const r = await attempt(() => call("/api/pick", { kind: "image" })); if (r?.path) put({ src: r.path }); }) : null),
-        h("div.full", check("Keep its shape (fit inside)", e.contain, (v) => put({ contain: v }), { k: "el-contain" })))));
+        h("label", "Picture"), h("div.row", textInput(e.src, (v) => { v = v.trim(); if (v && !v.includes("{")) setPicture(v); else put({ src: v }); }, { k: "el-src", placeholder: "{home.logo} or a file" }),
+          store.state.host.dialogs ? button("Choose…", async () => { const r = await attempt(() => call("/api/pick", { kind: "image" })); if (r?.path) setPicture(r.path); }) : null),
+        h("div.full", check("Keep its shape (fit inside)", e.contain, (v) => put({ contain: v }), { k: "el-contain" })),
+        h("div.full.row", button("Actual size", async () => { const s2 = await sizePicture(renderSrc(e)); if (s2) put({ w: s2.w, h: s2.h }, "Actual size"); }, { cls: "btn-sm", disabled: !e.src, title: "The picture's own pixel size" })))));
     }
-    out.push(h("div.panel", h("h3", e.kind === "text" ? "Box behind the text" : "Box"), h("div.form",
+    if (e.kind === "board") {
+      const p2 = project();
+      const inner = p2.boards.find((b) => b.id === e.board);
+      out.push(h("div.panel", h("h3", "Board inside"), h("div.form",
+        h("label", "Shows"), select(p2.boards.filter((b) => b.id === e.board || canNest(p2.boards, board.id, b.id)).map((b) => [b.id, b.name]), e.board, (v) => put({ board: v }, "Board inside"), { k: "el-board" })),
+        h("div.row", { style: { marginTop: "8px" } },
+          button("Actual size", () => inner && put({ w: inner.width, h: inner.height }, "Actual size"), { cls: "btn-sm" }),
+          button("Fill this board", () => put({ x: 0, y: 0, w: board.width, h: board.height }, "Fill board"), { cls: "btn-sm" }),
+          button("Edit it", () => { ui.board = e.board; ui.gsel = []; remember(); load(); renderAll(); }, { cls: "btn-sm" })),
+        h("p.hint", e.show_when ? `On air while “${p2.fields.find((f) => f.key === e.show_when)?.label ?? e.show_when}” is on: the switch is in Control.` : "Always shown. Choose a switch under Show.")));
+    }
+    out.push(h("div.panel", h("h3", e.kind === "text" ? "Box behind the text" : e.kind === "board" ? "Box behind the board" : e.kind === "image" ? "Box behind the picture" : "Box"), h("div.form",
       ...c("fill", "Fill", { placeholder: "none" }), ...c("stroke", "Border", { placeholder: "none" }), ...n("stroke_width", "Border", { min: 0, suffix: "px" }),
-      ...n("radius", "Corners", { min: 0, suffix: "px" }), ...n("opacity", "Opacity", { min: 0, max: 1, step: 0.05 }))));
+      ...n("radius", "Corners", { min: 0, suffix: "px" }))));
     out.push(h("div.panel", h("h3", "Show"), h("div.form",
       h("label", "Only while"), select([["", "Always shown"], ...toggles.map((f) => [f.key, `${f.label} is on / not empty`])], e.show_when, (v) => put({ show_when: v }, "Show while"), { k: "el-sw" })),
       h("p.hint", "Conditions under Logic can also show, hide, recolour and animate it.")));
@@ -621,15 +855,47 @@ export function mountDesigner(root) {
     return out;
   }
 
+  const renderSrc = (e) => String(e.src || "").replace(/\{([a-z0-9_.]+)\}/g, (m, k) => store.snapshot?.values?.[k] ?? "");
+
+  // Fonts: the ones CORBELscore ships first (they look the same everywhere),
+  // then the computer's own. Each name is shown in its own face.
+  function fontPicker(value, commit2) {
+    const bundled = BUNDLED_FONTS.map((f) => f.family);
+    const opt = (f) => h("option", { value: f, selected: f === value, style: { fontFamily: `"${f}"` } }, f);
+    const groups = [h("optgroup", { label: "Built in" }, BUNDLED_FONTS.map((f) => opt(f.family)))];
+    if (localFonts) groups.push(h("optgroup", { label: "On this computer" }, localFonts.filter((f) => !bundled.includes(f)).map(opt)));
+    else if (value && !bundled.includes(value)) groups.push(h("optgroup", { label: "In use" }, opt(value)));
+    const more = [];
+    if (!localFonts && window.queryLocalFonts) more.push(h("option", { value: "__local" }, "Show this computer's fonts…"));
+    more.push(h("option", { value: "__type" }, "Type a font name…"));
+    const sel = h("select.input", { "data-k": "el-font", style: { fontFamily: `"${value}"` } }, groups, h("optgroup", { label: "More" }, more));
+    sel.addEventListener("change", async () => {
+      const v = sel.value;
+      if (v === "__local") {
+        try { await loadLocalFonts(); toast(`${localFonts.length} fonts on this computer are in the list now.`); } catch (err) { toast(err.message, true); }
+        renderRight();
+        return;
+      }
+      if (v === "__type") {
+        const name = await ask("Font", "Font name, as installed", value, { placeholder: "e.g. Futura PT" });
+        if (name) commit2(name); else renderRight();
+        return;
+      }
+      commit2(v);
+    });
+    return sel;
+  }
+
   // ---- wiring ---------------------------------------------------------------------------------------------------
   function renderAll() { renderToolbar(); renderLeft(); renderRight(); drawOverlay(); }
   view.onfit = () => { if (!drag) drawOverlay(); zoomLabel.textContent = `${Math.round(view.scale * 100)}%`; };
   load();
   renderAll();
+  applySplit();
   const offs = [
     on("project", (p) => { if (!p || drag) return; load(); renderAll(); }),
     on("snap", () => { if (!drag) applyValues(); }),
     on("status", () => renderToolbar()),
   ];
-  return () => { offs.forEach((f) => f()); releaseKeys(); releasePaste(); view.destroy(); previewView?.destroy(); previewView = null; };
+  return () => { offs.forEach((f) => f()); releaseKeys(); releasePaste(); paneOff?.(); view.destroy(); previewView?.destroy(); previewView = null; };
 }

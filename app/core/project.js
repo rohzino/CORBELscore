@@ -1,4 +1,4 @@
-// A TeleScore project (.tsproj, JSON). Format 3 keeps fields, graphics boards,
+// A CORBELscore project (.corbel; TeleScore's .tsproj is the same format, JSON). Format 3 keeps fields, graphics boards,
 // buttons, the control layout, outputs, animations, live-data settings and
 // conditions in one readable file. Format 2 (TeleScore 2.0 alphas) and 1.x
 // files are converted on the way in; the original file is never overwritten.
@@ -14,7 +14,7 @@ import { makeSource } from "./source.js";
 
 export const FORMAT = "telescore-project";
 export const VERSION = 3;
-export const APP_VERSION = "2.0.0a3";
+export const APP_VERSION = "2.0.0a4";
 
 export class ProjectError extends Error {}
 
@@ -27,7 +27,7 @@ export function makeButton(o = {}) {
 }
 
 export const OUTPUT_DEFAULTS = {
-  folder: "",               // "" = <Documents>/TeleScore Output/<project>
+  folder: "",               // "" = <Documents>/CORBELscore Output/<project>
   text_enabled: true,
   xml_enabled: true,
   xml_profiles: ["nested", "flat", "fields"],
@@ -90,10 +90,10 @@ export class Project {
   }
 
   static fromDict(d) {
-    if (d?.format !== FORMAT) throw new ProjectError("This is not a TeleScore 2 project.");
+    if (d?.format !== FORMAT) throw new ProjectError("This is not a CORBELscore project.");
     const version = Math.trunc(Number(d.version ?? 0));
     if (version > VERSION) {
-      throw new ProjectError(`This project was saved by a newer TeleScore (format ${d.version}). Update TeleScore to open it.`);
+      throw new ProjectError(`This project was saved by a newer CORBELscore (format ${d.version}). Update CORBELscore to open it.`);
     }
     const fields = (d.fields || []).map((fd) => {
       try { return fieldFromDict(fd); } catch (e) { throw new ProjectError(`Field "${fd?.key ?? "?"}" could not be read: ${e.message}`); }

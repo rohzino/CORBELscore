@@ -2,7 +2,7 @@
 //   public  (port 8130 by default, set in Outputs): browser sources for OBS
 //           and vMix, the XML/JSON feeds, remote control for Stream Deck and
 //           Companion, and the list page at /.
-//   studio  (127.0.0.1, a random port): the TeleScore window itself and its
+//   studio  (127.0.0.1, a random port): the CORBELscore window itself and its
 //           editing API, locked to a key made fresh on every start.
 // Both serve the shared modules (/core, /render) and fonts, so a board looks
 // the same everywhere it is drawn.
@@ -17,7 +17,7 @@ import { overlayHtml, indexHtml } from "./pages.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const APP_DIR = path.resolve(HERE, "..");
-const STATIC = { "/core/": path.join(APP_DIR, "core"), "/render/": path.join(APP_DIR, "ui", "render"), "/fonts/": path.join(APP_DIR, "assets", "fonts"),
+const STATIC = { "/core/": path.join(APP_DIR, "core"), "/render/": path.join(APP_DIR, "ui", "render"), "/fonts/": path.join(APP_DIR, "assets", "fonts"), "/brand/": path.join(APP_DIR, "assets", "brand"),
   "/ui/": path.join(APP_DIR, "ui") };
 const TYPES = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
   ".ttf": "font/ttf", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
@@ -164,7 +164,7 @@ export function runAction(app, action) {
     app.submit(action, (err) => finish(err ? 400 : 200, err ? { ok: false, error: err } : { ok: true }), ticket);
     setTimeout(() => {
       if (settled) return;
-      if (ticket.withdraw()) finish(504, { ok: false, error: "TeleScore was busy and did not run the action. It is safe to try again." });
+      if (ticket.withdraw()) finish(504, { ok: false, error: "CORBELscore was busy and did not run the action. It is safe to try again." });
       else setTimeout(() => finish(504, { ok: false, error: "The action started but did not finish in time." }), 5000);
     }, 2000);
   });
@@ -174,12 +174,12 @@ export async function publicRoutes(app, hub, req, res, url, { token }) {
   const p = url.pathname;
   if (req.method === "OPTIONS") {
     res.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-TeleScore-Token", "Content-Length": 0 });
+      "Access-Control-Allow-Headers": "Content-Type, X-CORBELscore-Token, X-TeleScore-Token", "Content-Length": 0 });
     return res.end(), true;
   }
   const cors = { "Access-Control-Allow-Origin": "*" };
   if (serveStatic(res, url)) return true;
-  if (!app.project) return send(res, 503, "No project is open in TeleScore."), true;
+  if (!app.project) return send(res, 503, "No project is open in CORBELscore."), true;
   const snap = app.project.engine.snapshot();
   if (p === "/" || p === "/index.html") return send(res, 200, indexHtml(app, req.headers.host || "127.0.0.1"), TYPES[".html"]), true;
   if (p === "/state.json") return send(res, 200, stateJson(snap), TYPES[".json"], cors), true;
@@ -196,15 +196,15 @@ export async function publicRoutes(app, hub, req, res, url, { token }) {
     if (asJson) id = id.slice(0, -5);
     const board = app.project.board(id);
     if (!board) return send(res, 404, "There is no board with that id. Open / for the list."), true;
-    if (asJson) return json(res, 200, { board, animations: app.project.animations }, cors), true;
-    return send(res, 200, overlayHtml(board, url.searchParams.get("bg") || "transparent", app.project.animations), TYPES[".html"]), true;
+    if (asJson) return json(res, 200, { board, animations: app.project.animations, boards: app.project.boards }, cors), true;
+    return send(res, 200, overlayHtml(board, url.searchParams.get("bg") || "transparent", app.project.animations, app.project.boards), TYPES[".html"]), true;
   }
   if (p === "/api/fields") {
     return json(res, 200, Object.keys(snap.types).map((k) => ({ key: k, type: snap.types[k], label: snap.labels[k] ?? k })), cors), true;
   }
   if (p === "/api/action") {
-    const given = req.headers["x-telescore-token"] || url.searchParams.get("token") || "";
-    if (token && given !== token) return json(res, 403, { ok: false, error: "This TeleScore needs a token. Add ?token=..." }, cors), true;
+    const given = req.headers["x-corbelscore-token"] || req.headers["x-telescore-token"] || url.searchParams.get("token") || "";
+    if (token && given !== token) return json(res, 403, { ok: false, error: "This CORBELscore needs a token. Add ?token=..." }, cors), true;
     let action;
     if (req.method === "POST") {
       try { action = JSON.parse((await readBody(req, 64 * 1024)) || "{}"); } catch { return json(res, 400, { ok: false, error: 'The body must be JSON, like {"do":"add"}.' }, cors), true; }

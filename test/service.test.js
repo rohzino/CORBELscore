@@ -46,8 +46,8 @@ test("files: text, XML and JSON are written and follow the score", async () => {
   assert.equal(fs.readFileSync(txt, "utf8"), "0");
   app.project.engine.perform({ do: "add", field: "away.score", amount: 2 });
   await until(() => fs.readFileSync(txt, "utf8") === "2");
-  const nested = parseXml(fs.readFileSync(path.join(dir, "out", "telescore.xml"), "utf8"));
-  assert.ok(nested, "telescore.xml parses");
+  const nested = parseXml(fs.readFileSync(path.join(dir, "out", "corbelscore.xml"), "utf8"));
+  assert.ok(nested, "corbelscore.xml parses");
   const state = JSON.parse(fs.readFileSync(path.join(dir, "out", "state.json"), "utf8"));
   assert.equal(String(state.values["away.score"]), "2");
 });
@@ -60,7 +60,7 @@ test("files: names are safe on Windows", () => {
 test("web: feeds, boards and the field list", async () => {
   const s = await (await fetch(pub("/state.json"))).json();
   assert.ok("clock.game" in s.values);
-  for (const f of ["/telescore.xml", "/vmix.xml", "/fields.xml"]) {
+  for (const f of ["/corbelscore.xml", "/vmix.xml", "/fields.xml"]) {
     const r = await fetch(pub(f));
     assert.equal(r.status, 200, f);
     assert.ok(parseXml(await r.text()), `${f} parses`);
@@ -90,14 +90,14 @@ test("web: remote control needs the token and scores once", async () => {
 test("studio: the API needs the key and this computer's address", async () => {
   const post = (q, headers = {}) => fetch(studio(q), { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: "{}" });
   assert.equal((await post("/api/state")).status === 200, false, "no key, no answer");
-  const ok = await post("/api/state", { "X-TeleScore-Key": app.key });
+  const ok = await post("/api/state", { "X-CORBELscore-Key": app.key });
   assert.equal(ok.status, 200);
   // A web page on another site that resolves to 127.0.0.1 (DNS rebinding) sends its own Host.
   const http = await import("node:http");
   const status = await new Promise((resolve) => {
     const u = new URL(studio("/api/state"));
     const req = http.request({ host: "127.0.0.1", port: u.port, path: u.pathname, method: "POST",
-      headers: { Host: "evil.example:80", "X-TeleScore-Key": app.key, "Content-Type": "application/json" } }, (res) => { res.resume(); resolve(res.statusCode); });
+      headers: { Host: "evil.example:80", "X-CORBELscore-Key": app.key, "Content-Type": "application/json" } }, (res) => { res.resume(); resolve(res.statusCode); });
     req.end("{}");
   });
   assert.notEqual(status, 200);

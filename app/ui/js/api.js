@@ -1,13 +1,13 @@
-// The window's connection to the TeleScore service: requests and a live
+// The window's connection to the CORBELscore service: requests and a live
 // stream of state (project, status, values, notices).
 
 export const KEY = new URLSearchParams(location.search).get("key") || sessionStorage.getItem("ts-key") || "";
 try { sessionStorage.setItem("ts-key", KEY); } catch { /* */ }
 
 export async function call(path, body = {}) {
-  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-TeleScore-Key": KEY }, body: JSON.stringify(body) });
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-CORBELscore-Key": KEY }, body: JSON.stringify(body) });
   let d;
-  try { d = await r.json(); } catch { throw new Error(`TeleScore answered ${r.status}.`); }
+  try { d = await r.json(); } catch { throw new Error(`CORBELscore answered ${r.status}.`); }
   if (!d.ok) throw new Error(d.error || "That did not work.");
   return d;
 }

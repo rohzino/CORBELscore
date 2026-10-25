@@ -130,6 +130,15 @@ export function mountControl(root) {
     const cw = colW();
     return { x: Math.floor((clientX - b.left) / (cw + GAP)), y: Math.floor((clientY - b.top) / (rowH + GAP)) };
   };
+  // Fractional cells, so a resize follows the pointer by half a cell, not a whole one.
+  const cellsBetween = (x0, y0, x1, y1) => ({ x: Math.round((x1 - x0) / (colW() + GAP)), y: Math.round((y1 - y0) / (rowH + GAP)) });
+  // Which part of a tile is under the pointer: its right edge, bottom edge, corner, or body.
+  const EDGE = 12;
+  function zoneOf(tileEl, clientX, clientY) {
+    const r = tileEl.getBoundingClientRect();
+    const right = clientX > r.right - EDGE, bottom = clientY > r.bottom - EDGE;
+    return right && bottom ? "se" : right ? "e" : bottom ? "s" : "";
+  }
   function fitHeight() {
     const pg = page();
     const used = Math.max(0, ...(pg?.tiles ?? []).map((t) => t.y + t.h));
@@ -178,7 +187,7 @@ export function mountControl(root) {
     work.classList.toggle("locked", !ed);
     band.classList.toggle("hidden", !ed);
     clear(band);
-    if (ed) band.append(chip("Editing"), h("span", "Drag to move, drag the corner to resize. Controls do not fire while you edit. Shortcuts still do."),
+    if (ed) band.append(chip("Editing"), h("span", "Drag to move, drag an edge or corner to resize. Controls do not fire while you edit. Shortcuts still do."),
       h("span.spacer"), button("Done: lock the layout", () => setMode("locked"), { cls: "btn-sm" }));
     // Re-attach the panels only when the mode changed: moving a panel in the
     // page drops the focus of whatever box is open in it.
@@ -212,21 +221,33 @@ export function mountControl(root) {
     const entryT = tiles.get(id);
     if (!entryT) return;
     select({ kind: "tile", id });
-    const resizing = e.target.classList.contains("rz");
+    const zone = e.target.classList.contains("rz") ? "se" : zoneOf(tileEl, e.clientX, e.clientY);
     const start = cellAt(e.clientX, e.clientY);
-    drag = { id, resizing, start, orig: { ...entryT.t }, cur: { ...entryT.t }, moved: false, ghost: null };
+    drag = { id, resizing: zone, start, px: { x: e.clientX, y: e.clientY }, orig: { ...entryT.t }, cur: { ...entryT.t }, moved: false, ghost: null };
     layout.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
 
   layout.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    const c = cellAt(e.clientX, e.clientY);
-    const dx = c.x - drag.start.x, dy = c.y - drag.start.y;
+    if (!drag) {
+      // Show what a press here would do: resize at the right and bottom edges, move elsewhere.
+      if (!editing()) return;
+      const tileEl = e.target.closest?.(".tile");
+      if (tileEl) tileEl.style.cursor = { se: "nwse-resize", e: "ew-resize", s: "ns-resize" }[zoneOf(tileEl, e.clientX, e.clientY)] ?? "move";
+      return;
+    }
     const o = drag.orig;
-    const next = drag.resizing
-      ? { ...o, w: Math.max(1, Math.min(COLUMNS - o.x, o.w + dx)), h: Math.max(1, o.h + dy) }
-      : { ...o, x: Math.max(0, Math.min(COLUMNS - o.w, o.x + dx)), y: Math.max(0, o.y + dy) };
+    let next;
+    if (drag.resizing) {
+      const d = cellsBetween(drag.px.x, drag.px.y, e.clientX, e.clientY);
+      next = { ...o,
+        w: drag.resizing.includes("e") ? Math.max(1, Math.min(COLUMNS - o.x, o.w + d.x)) : o.w,
+        h: drag.resizing.includes("s") ? Math.max(1, o.h + d.y) : o.h };
+    } else {
+      const c = cellAt(e.clientX, e.clientY);
+      const dx = c.x - drag.start.x, dy = c.y - drag.start.y;
+      next = { ...o, x: Math.max(0, Math.min(COLUMNS - o.w, o.x + dx)), y: Math.max(0, o.y + dy) };
+    }
     if (next.x === drag.cur.x && next.y === drag.cur.y && next.w === drag.cur.w && next.h === drag.cur.h) return;
     drag.cur = next;
     drag.moved = true;
@@ -350,4 +371,40 @@ export function mountControl(root) {
   ];
   renderAll();
   return () => { offs.forEach((f) => f()); releaseKeys(); ro.disconnect(); for (const { el } of tiles.values()) el._destroy?.(); };
+}
+
+// The live controls on their own, for the split view under the graphics
+// editor: one page at a time, every control live, nothing to arrange.
+export function mountControlPane(root) {
+  const bar = h("div.cp-bar");
+  const grid = h("div.cp-grid", { style: { "--cols": COLUMNS } });
+  root.append(bar, grid);
+  let tiles = [];
+  const page = () => {
+    const p = store.project;
+    return p.layout.pages.find((x) => x.id === ui.splitPage) ?? p.layout.pages.find((x) => x.id === ui.page) ?? p.layout.pages[0];
+  };
+  function render() {
+    for (const t of tiles) t.el._destroy?.();
+    tiles = [];
+    clear(bar);
+    clear(grid);
+    const p = store.project;
+    if (!p) return;
+    const pg = page();
+    bar.append(h("span.caps", "Controls"),
+      h("div.pagetabs", { role: "tablist", "aria-label": "Pages" }, p.layout.pages.map((x) =>
+        h("button", { role: "tab", "aria-selected": String(x.id === pg?.id), onclick: () => { ui.splitPage = x.id; remember(); render(); } }, x.name))),
+      h("span.spacer"), h("span.hint", "Live: these change the game, as in Control."));
+    if (!pg?.tiles.length) { grid.append(h("p.hint", { style: { padding: "12px" } }, "This page has no controls yet. Add some in Control → Edit.")); return; }
+    for (const t of pg.tiles) {
+      const r = renderTile(t, { project: p, snap: store.snapshot });
+      Object.assign(r.el.style, { gridColumn: `${t.x + 1} / span ${t.w}`, gridRow: `${t.y + 1} / span ${t.h}` });
+      grid.append(r.el);
+      tiles.push(r);
+    }
+  }
+  render();
+  const offs = [on("project", (p) => { if (p) render(); }), on("snap", (s) => { for (const t of tiles) t.update(s); })];
+  return () => { offs.forEach((f) => f()); for (const t of tiles) t.el._destroy?.(); };
 }

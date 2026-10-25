@@ -14,7 +14,7 @@ export function defaultOutputFolder(projectName) {
   let docs = path.join(os.homedir(), "Documents");
   if (!fs.existsSync(docs)) docs = os.homedir();
   const safe = String(projectName || "").replace(/[^A-Za-z0-9 _-]/g, "_").trim() || "Untitled";
-  return path.join(docs, "TeleScore Output", safe);
+  return path.join(docs, "CORBELscore Output", safe);
 }
 
 let tmpSeq = 0;

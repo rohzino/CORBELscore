@@ -1,9 +1,10 @@
-// TeleScore's desktop shell (Electron). Everything that matters runs in the
+// CORBELscore's desktop shell (Electron). Everything that matters runs in the
 // service (app/service); this file only gives it a window and the few things a
 // browser page cannot do: file dialogs, projector windows on other displays,
 // PNG capture, background shortcuts and opening folders.
 
-import { app, BrowserWindow, dialog, globalShortcut, screen, shell, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, screen, session, shell, Menu, nativeImage } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { App } from "./service/app.js";
@@ -12,8 +13,23 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ICON = path.join(HERE, "assets", "icon.ico");
 
 // The self-check keeps its own settings, so it never touches the real ones.
-if (process.env.TELESCORE_SMOKE) app.setPath("userData", path.join(process.env.TELESCORE_SMOKE, "data"));
+if (process.env.CORBEL_SMOKE) app.setPath("userData", path.join(process.env.CORBEL_SMOKE, "data"));
 else if (!app.requestSingleInstanceLock()) app.quit();
+else migrateFromTeleScore();
+
+// Settings (the Sportzcast token, recent projects, colours) used to live in
+// TeleScore's folder. Copy them across once so nothing has to be typed again.
+function migrateFromTeleScore() {
+  try {
+    const now = app.getPath("userData");
+    const old = path.join(path.dirname(now), "TeleScore");
+    const file = path.join(now, "settings.json");
+    if (!fs.existsSync(file) && fs.existsSync(path.join(old, "settings.json"))) {
+      fs.mkdirSync(now, { recursive: true });
+      fs.copyFileSync(path.join(old, "settings.json"), file);
+    }
+  } catch { /* a fresh start is fine */ }
+}
 
 let win = null;
 let service = null;
@@ -21,8 +37,8 @@ let quitting = false;
 
 // ---- dialogs ----------------------------------------------------------------------------------
 const FILTERS = {
-  project: [{ name: "TeleScore projects", extensions: ["tsproj", "json", "tsp"] }, { name: "All files", extensions: ["*"] }],
-  save: [{ name: "TeleScore project", extensions: ["tsproj"] }],
+  project: [{ name: "CORBELscore and TeleScore projects", extensions: ["corbel", "tsproj", "json", "tsp"] }, { name: "All files", extensions: ["*"] }],
+  save: [{ name: "CORBELscore project", extensions: ["corbel"] }],
   image: [{ name: "Pictures", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"] }],
   sound: [{ name: "Sounds", extensions: ["wav", "mp3", "ogg", "m4a", "aac", "flac"] }],
   data: [{ name: "Score data", extensions: ["xml", "json", "txt"] }, { name: "All files", extensions: ["*"] }],
@@ -31,7 +47,7 @@ const FILTERS = {
 async function pick(kind, opts = {}) {
   const parent = BrowserWindow.getFocusedWindow() ?? win;
   if (kind === "save") {
-    const r = await dialog.showSaveDialog(parent, { title: "Save project", defaultPath: path.join(app.getPath("documents"), opts.name || "Untitled.tsproj"), filters: FILTERS.save });
+    const r = await dialog.showSaveDialog(parent, { title: "Save project", defaultPath: path.join(app.getPath("documents"), opts.name || "Untitled.corbel"), filters: FILTERS.save });
     return r.canceled ? "" : r.filePath;
   }
   const r = await dialog.showOpenDialog(parent, {
@@ -55,7 +71,7 @@ function openProjector(url, opts = {}) {
   // The chosen display, else the first one that is not the operator's screen.
   const target = all.find((d) => d.id === Number(opts.display)) ?? all.find((d) => d.id !== primary.id) ?? null;
   const w = new BrowserWindow({
-    title: "TeleScore projector", icon: ICON, backgroundColor: "#000000", autoHideMenuBar: true,
+    title: "CORBELscore projector", icon: ICON, backgroundColor: "#000000", autoHideMenuBar: true,
     ...(target ? { x: target.bounds.x, y: target.bounds.y, width: target.bounds.width, height: target.bounds.height, fullscreen: true }
       : { width: 1280, height: 720 }),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
@@ -94,7 +110,7 @@ async function capturePng(url, width, height) {
 }
 
 // ---- background shortcuts --------------------------------------------------------------------
-// Off while the TeleScore window has focus (the window handles its own keys,
+// Off while the CORBELscore window has focus (the window handles its own keys,
 // and typing a team name must not fire Space), on while it does not.
 let wanted = [];
 const lastFired = new Map();
@@ -131,7 +147,7 @@ function applyShortcuts() {
 // ---- the window ------------------------------------------------------------------------------
 async function createWindow() {
   win = new BrowserWindow({
-    title: "TeleScore", icon: nativeImage.createFromPath(ICON), width: 1440, height: 900, minWidth: 960, minHeight: 600,
+    title: "CORBELscore", icon: nativeImage.createFromPath(ICON), width: 1440, height: 900, minWidth: 960, minHeight: 600,
     backgroundColor: "#0e1311", show: false, autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false },
   });
@@ -148,13 +164,13 @@ async function createWindow() {
   win.on("close", async (e) => {
     if (quitting || !service?.dirty) return;
     e.preventDefault();
-    const r = await dialog.showMessageBox(win, { type: "warning", title: "TeleScore", message: `Save changes to ${service.project?.name ?? "this project"}?`,
+    const r = await dialog.showMessageBox(win, { type: "warning", title: "CORBELscore", message: `Save changes to ${service.project?.name ?? "this project"}?`,
       detail: "If you don't save, your design changes since the last save are lost.", buttons: ["Save", "Don't save", "Cancel"], defaultId: 0, cancelId: 2, noLink: true });
     if (r.response === 2) return;
     if (r.response === 0) {
       try {
         let file = service.project.path;
-        if (!file) file = await pick("save", { name: `${service.project.name}.tsproj` });
+        if (!file) file = await pick("save", { name: `${service.project.name}.corbel` });
         if (!file) return;
         service.save(file);
       } catch (err) { await dialog.showMessageBox(win, { type: "error", message: "Could not save.", detail: err.message }); return; }
@@ -170,6 +186,11 @@ app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  // The window may list the computer's fonts (for the font picker), copy to the
+  // clipboard and go full screen; nothing else (camera, location…) is granted.
+  const ALLOWED = new Set(["local-fonts", "clipboard-sanitized-write", "clipboard-read", "fullscreen"]);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, done) => done(ALLOWED.has(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED.has(permission));
   service = new App({
     dataDir: app.getPath("userData"),
     host: {
@@ -184,20 +205,19 @@ app.whenReady().then(async () => {
   try {
     await service.start();
   } catch (err) {
-    dialog.showErrorBox("TeleScore could not start", err.message);
+    dialog.showErrorBox("CORBELscore could not start", err.message);
     app.quit();
     return;
   }
-  const file = process.argv.slice(app.isPackaged ? 1 : 2).find((a) => /\.(tsproj|json|tsp)$/i.test(a));
+  const file = process.argv.slice(app.isPackaged ? 1 : 2).find((a) => /\.(corbel|tsproj|json|tsp)$/i.test(a));
   if (file) await service.openFile(path.resolve(file)).catch((err) => dialog.showErrorBox("Could not open the project", err.message));
   await createWindow();
-  if (process.env.TELESCORE_SMOKE) smokeTest(process.env.TELESCORE_SMOKE);
+  if (process.env.CORBEL_SMOKE) smokeTest(process.env.CORBEL_SMOKE);
 });
 
-// A self-check of the desktop parts (TeleScore.bat test): the window draws, a
+// A self-check of the desktop parts (CORBELscore.bat test): the window draws, a
 // board renders to PNG, shortcuts convert. Writes pictures and a report, then quits.
 async function smokeTest(dir) {
-  const fs = await import("node:fs");
   const report = [];
   const ok = (name, pass, detail = "") => report.push(`${pass ? "PASS" : "FAIL"}  ${name}${detail ? "  " + detail : ""}`);
   try {
@@ -216,6 +236,10 @@ async function smokeTest(dir) {
     const pairs = [["Ctrl+Space", "Control+Space"], ["Q", "Q"], ["[", "["], ["F5", "F5"], ["Ctrl+Shift+PgUp", "Control+Shift+PageUp"], ["Del", "Delete"]];
     ok("shortcuts convert", pairs.every(([q, a]) => accelerator(q) === a), pairs.map(([q]) => `${q}→${accelerator(q)}`).join(" "));
     ok("displays listed", displays().length >= 1, JSON.stringify(displays()));
+    const font = await win.webContents.executeJavaScript('document.fonts.check(\'16px "Red Hat Text"\') && document.fonts.check(\'700 16px "Red Hat Display"\')');
+    ok("Red Hat fonts loaded", font === true);
+    const fonts = await win.webContents.executeJavaScript("window.queryLocalFonts ? window.queryLocalFonts().then((l) => l.length).catch((e) => 'refused: ' + e.message) : 'no API'", true);
+    ok("computer's fonts can be listed", typeof fonts === "number", String(fonts));
   } catch (err) { ok("smoke test ran", false, err.stack); }
   fs.writeFileSync(path.join(dir, "report.txt"), report.join("\n") + "\n");
   console.log(report.join("\n"));

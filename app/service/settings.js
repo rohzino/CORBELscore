@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { atomicWriteText } from "./files.js";
 
-export const SETTINGS_DEFAULTS = { recent: [], scheme: "Keystone Dark", global_keys: false, last_board: "", window: null,
+export const SETTINGS_DEFAULTS = { recent: [], scheme: "Basalt", global_keys: false, last_board: "", window: null,
   sportzcast_token: "" };
 
 export class Settings {
@@ -31,7 +31,7 @@ export class Settings {
     return { ...rest, has_token: !!sportzcast_token, recent: this.data.recent.filter((p) => fs.existsSync(p)).map((p) => {
       let mtime = 0;
       try { mtime = fs.statSync(p).mtimeMs; } catch { /* */ }
-      return { path: p, name: path.basename(p).replace(/\.tsproj$/i, ""), folder: path.dirname(p), mtime };
+      return { path: p, name: path.basename(p).replace(/\.(corbel|tsproj)$/i, ""), folder: path.dirname(p), mtime };
     }) };
   }
 }

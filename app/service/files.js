@@ -56,10 +56,10 @@ export function loadProject(file) {
       return p;
     }
   } else {
-    if (!isLegacy(data)) throw new ProjectError("This file is not a TeleScore project.");
+    if (!isLegacy(data)) throw new ProjectError("This file is not a CORBELscore or TeleScore project.");
     p = importLegacy(data);
     p.importedFrom = file;
-    return p;   // Save asks for a new .tsproj name; the 1.x file is never overwritten
+    return p;   // Save asks for a new .corbel name; the 1.x file is never overwritten
   }
   p.path = file;
   return p;

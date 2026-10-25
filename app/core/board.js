@@ -6,14 +6,17 @@
 
 import { newId } from "./ids.js";
 
-export const ELEMENT_KINDS = ["text", "box", "image"];
+export const ELEMENT_KINDS = ["text", "box", "image", "board"];
 
 export const ELEMENT_DEFAULTS = {
   kind: "text", name: "", x: 0, y: 0, w: 200, h: 80, opacity: 1, visible: true, locked: false, show_when: "",
   fill: "", stroke: "", stroke_width: 0, radius: 0,
   text: "", font: "Archivo", size: 48, weight: 700, italic: false, color: "#ffffff", align: "center",
   valign: "middle", uppercase: false, tracking: 0, fit: true, tabular: true, padding: 0,
+  extent: "fixed",   // text: "fixed" box (wraps and shrinks inside it) or "auto" (the box hugs the text)
+  wrap: false,       // text, fixed: break long lines onto the next line
   src: "", contain: true, rules: "", anim_in: "", anim_out: "", anim_change: "",
+  board: "",         // board element: the id of the board drawn inside this one
 };
 
 const TPL = /\{\{|\}\}|\{([a-z0-9_.]+)\}/g;
@@ -58,6 +61,7 @@ export function makeElement(o = {}) {
     if (!Number.isFinite(e[k])) throw new Error(`Element "${e.name || e.id}": ${k} must be a number.`);
   }
   e.weight = Math.trunc(Number(e.weight) || 700);
+  if (!["fixed", "auto"].includes(e.extent)) e.extent = "fixed";
   return e;
 }
 
@@ -80,6 +84,9 @@ export function elementKeys(e) {
 export function elementShown(e, values) {
   if (e.visible === false) return false;
   if (!e.show_when) return true;
+  // An on/off field says so in "<key>.on", whatever words it shows ("Off air").
+  const flag = values[`${e.show_when}.on`];
+  if (flag !== undefined) return flag === "1";
   const v = String(values[e.show_when] ?? "").trim();
   return !["", "0", "false", "False"].includes(v);
 }
@@ -154,6 +161,18 @@ export function reorder(b, eid, where) {
   else if (where === "backward") b.elements.splice(Math.max(0, i - 1), 0, e);
   else { b.elements.splice(i, 0, e); throw new Error(where); }
 }
+
+// The boards b draws, directly or through boards inside them.
+export function boardsInside(boards, id, seen = new Set()) {
+  const b = boards.find((x) => x.id === id);
+  for (const e of b?.elements ?? []) {
+    if (e.kind === "board" && e.board && !seen.has(e.board)) { seen.add(e.board); boardsInside(boards, e.board, seen); }
+  }
+  return seen;
+}
+
+// Can board `inner` go inside board `outer` without a loop?
+export const canNest = (boards, outer, inner) => outer !== inner && !boardsInside(boards, inner).has(outer);
 
 export function copyBoard(b) {
   const c = structuredClone(b);

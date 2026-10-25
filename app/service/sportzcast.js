@@ -174,7 +174,7 @@ export class SportzcastSource {
       const finish = (err) => { clearInterval(ping); sock.removeAllListeners(); sock.destroy(); if (this._sock === sock) this._sock = null; err ? reject(err) : resolve(); };
       // CONNECT
       let flags = 0x02; // clean session
-      let payload = mqttStr("telescore-" + newId());
+      let payload = mqttStr("corbelscore-" + newId());
       if (s.cloud && s.username) {
         flags |= 0x80;
         payload = Buffer.concat([payload, mqttStr(s.username)]);

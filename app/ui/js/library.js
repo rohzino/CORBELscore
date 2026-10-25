@@ -191,7 +191,7 @@ function outputs(ctx) {
   const web = st.web || {};
   const urls = web.running ? [
     ...p.boards.map((b) => [b.name, `${web.url.replace(/\/$/, "")}/board/${b.id}`, `${b.width} × ${b.height}`]),
-    ["JSON", `${web.url}state.json`, ""], ["XML nested", `${web.url}telescore.xml`, ""], ["vMix XML", `${web.url}vmix.xml`, "XPath //row"], ["XML fields", `${web.url}fields.xml`, ""],
+    ["JSON", `${web.url}state.json`, ""], ["XML nested", `${web.url}corbelscore.xml`, ""], ["vMix XML", `${web.url}vmix.xml`, "XPath //row"], ["XML fields", `${web.url}fields.xml`, ""],
   ] : [];
   const copy = (u) => navigator.clipboard.writeText(u).then(() => toast("Copied. In OBS add a Browser source with this address."), () => toast(u));
   return [
@@ -203,7 +203,7 @@ function outputs(ctx) {
     h("div.col", { style: { marginTop: "8px" } },
       check("Text files: one per value, for OBS Text sources", o.text_enabled, (v) => put({ text_enabled: v }), { k: "out-text" }), fileState("text"),
       check("XML", o.xml_enabled, (v) => put({ xml_enabled: v }), { k: "out-xml" }),
-      h("div.col", { style: { paddingLeft: "24px" } }, [["nested", "telescore.xml · Ross XPression, Chyron"], ["flat", "vmix.xml · vMix data source"], ["fields", "fields.xml · look up by key"]].map(([prof, label]) =>
+      h("div.col", { style: { paddingLeft: "24px" } }, [["nested", "corbelscore.xml · Ross XPression, Chyron"], ["flat", "vmix.xml · vMix data source"], ["fields", "fields.xml · look up by key"]].map(([prof, label]) =>
         check(label, o.xml_profiles.includes(prof), (v) => put({ xml_profiles: v ? [...new Set([...o.xml_profiles, prof])] : o.xml_profiles.filter((x) => x !== prof) }), { k: `out-${prof}` }))),
       fileState("xml"),
       check("JSON (state.json)", o.json_enabled, (v) => put({ json_enabled: v }), { k: "out-json" }), fileState("json"),
@@ -221,7 +221,7 @@ function outputs(ctx) {
     urls.length ? h("div.list", { style: { marginTop: "8px" } }, urls.map(([name, url, sub]) => h("div.item", { title: url },
       h("div.grow", h("div.name", name), h("div.sub.mono", url)), sub ? h("span.typ", sub) : null, button("Copy", () => copy(url), { cls: "btn-sm" })))) : null,
     h("div.section-title", { style: { marginTop: "12px" } }, "Pictures"),
-    h("p.hint", store.state.host.png ? "Write a PNG of a board whenever it changes, for systems that load pictures." : "PNG pictures of boards need the TeleScore app window."),
+    h("p.hint", store.state.host.png ? "Write a PNG of a board whenever it changes, for systems that load pictures." : "PNG pictures of boards need the CORBELscore app window."),
     h("div.col", p.boards.map((b) => check(b.name, o.image_boards.includes(b.id), (v) => put({ image_boards: v ? [...o.image_boards, b.id] : o.image_boards.filter((x) => x !== b.id) }), { k: `png-${b.id}` }))),
   ];
 }

@@ -417,3 +417,49 @@ test("refactor: rename everywhere", () => {
   assert.deepEqual(fieldReferences(p, "clock.game"), []);
   assert.ok(p.layout.pages[0].tiles.some((t) => t.field === "clock.main"));
 });
+
+test("boards: a board can go inside another, never inside itself", async () => {
+  const { canNest, boardsInside, makeBoard, makeElement } = await import("../app/core/board.js");
+  const a = makeBoard({ name: "A", id: "a" }), b = makeBoard({ name: "B", id: "b" }), c = makeBoard({ name: "C", id: "c" });
+  b.elements.push(makeElement({ kind: "board", board: "c" }));
+  const all = [a, b, c];
+  assert.ok(canNest(all, "a", "b"), "B (holding C) can go in A");
+  assert.ok(!canNest(all, "a", "a"), "not in itself");
+  assert.ok(!canNest(all, "c", "b"), "not C inside B inside C");
+  assert.deepEqual([...boardsInside(all, "b")], ["c"]);
+});
+
+test("boards: text extents and show-while for on/off fields", async () => {
+  const { makeElement, elementShown } = await import("../app/core/board.js");
+  assert.equal(makeElement({ kind: "text", extent: "auto" }).extent, "auto");
+  assert.equal(makeElement({ kind: "text", extent: "sideways" }).extent, "fixed");
+  const e = makeElement({ kind: "board", show_when: "onair.sponsor" });
+  // An on/off field whose words are "On air"/"Off air" still hides when off.
+  assert.equal(elementShown(e, { "onair.sponsor": "Off air", "onair.sponsor.on": "0" }), false);
+  assert.equal(elementShown(e, { "onair.sponsor": "On air", "onair.sponsor.on": "1" }), true);
+  // Any other field: shown while it has a value.
+  const t = makeElement({ kind: "text", show_when: "home.name" });
+  assert.equal(elementShown(t, { "home.name": "" }), false);
+  assert.equal(elementShown(t, { "home.name": "Hawks" }), true);
+});
+
+test("fonts: every bundled face is on disk and in the CSS", async () => {
+  const { BUNDLED_FONTS, fontFaceCss, fontStack } = await import("../app/core/fonts.js");
+  const css = fontFaceCss("/fonts/");
+  for (const f of BUNDLED_FONTS) {
+    assert.ok(fs.existsSync(path.join("app/assets/fonts", f.file)), f.file);
+    if (f.italic) assert.ok(fs.existsSync(path.join("app/assets/fonts", f.italic)), f.italic);
+    assert.ok(css.includes(`font-family:"${f.family}"`), f.family);
+  }
+  assert.match(fontStack("Futura PT"), /^"Futura PT", "Red Hat Display"/);
+});
+
+test("toggles publish .on whatever their words, live or not", () => {
+  const e = new Engine([new ToggleField("onair.x", { value: true, on_text: "On air", off_text: "Off air" })]);
+  e.perform({ do: "set", field: "onair.x", value: false });
+  assert.deepEqual([e.snapshot().values["onair.x"], e.snapshot().values["onair.x.on"]], ["Off air", "0"]);
+  e.field("onair.x").source = "Flag";
+  e.feed({ Flag: ">" });
+  e.tick();
+  assert.deepEqual([e.snapshot().values["onair.x"], e.snapshot().values["onair.x.on"]], ["On air", "1"]);
+});

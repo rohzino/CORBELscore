@@ -50,6 +50,7 @@ export function renderTile(t, { project, snap }) {
       const host = h("div", { style: { position: "absolute", inset: "0" } });
       el.append(host);
       const view = new BoardView(host, { assetUrl: fileUrl });
+      view.setBoards(project.boards);
       view.setBoard(b, project.animations);
       update = (s) => s && view.setValues(s.values, s.fx);
       el._destroy = () => view.destroy();
@@ -139,7 +140,9 @@ function fieldTile(el, f, t, snap) {
     el.append(sw);
     return { update: (s) => {
       const on = s?.raw?.[f.key] === true;
-      sw.textContent = on ? `On${f.on_text && f.on_text !== "1" ? ` · ${f.on_text}` : ""}` : "Off";
+      // Words say themselves ("On air" / "Off air"); a symbol gets a word beside it ("On · ●").
+      const word = (x) => /^[\p{L}][\p{L} ]+$/u.test(String(x || "").trim());
+      sw.textContent = on ? (word(f.on_text) ? f.on_text : `On${f.on_text && f.on_text !== "1" ? ` · ${f.on_text}` : ""}`) : (word(f.off_text) ? f.off_text : "Off");
       sw.classList.toggle("on", on);
       sw.setAttribute("aria-pressed", String(on));
       refreshChip(s);

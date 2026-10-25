@@ -12,7 +12,7 @@ export function h(tag, props, ...kids) {
   for (const [k, v] of Object.entries(props || {})) {
     if (v === undefined || v === null || v === false) continue;
     if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+    else if (k === "style" && typeof v === "object") { for (const [sk, sv] of Object.entries(v)) { if (sk.startsWith("--")) el.style.setProperty(sk, sv); else if (sv !== undefined && sv !== null) el.style[sk] = sv; } }
     else if (k === "class") el.className += " " + v;
     else if (k.startsWith("data-") || k.startsWith("aria-") || k === "role" || k === "for" || k === "list") el.setAttribute(k, v === true ? "" : v);
     else if (k in el) el[k] = v;

@@ -461,6 +461,7 @@ export class Engine {
           const view = Object.create(f);
           view.value = f instanceof ToggleField ? raw[k] : String(src);
           b = view.display(t);
+          if (f instanceof ToggleField) extra = { ...extra, on: raw[k] ? "1" : "0" };
         } else if (f instanceof ClockField) {
           const lc = liveClock(f, src, this.sources);
           if (lc) { b = lc.text; raw[k] = lc.ms; extra = { ...extra, tenths: lc.tenths ? "1" : "0" }; }

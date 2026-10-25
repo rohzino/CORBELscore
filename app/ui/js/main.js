@@ -1,8 +1,8 @@
-// The TeleScore window: header, the two tabs, the start page, file commands,
+// The CORBELscore window: header, the two tabs, the start page, file commands,
 // notices and the keyboard.
 
 import { act, call, connect, edit, on, store } from "./api.js";
-import { applyScheme, DEFAULT_SCHEME, SCHEMES } from "./colors.js";
+import { applyScheme, DEFAULT_SCHEME, SCHEMES, schemeName } from "./colors.js";
 import { button, chip, clear, h, kbd } from "./dom.js";
 import { fromEvent, isGlobalSafe, normalise, typing } from "./keys.js";
 import { attempt, closeMenu, confirmDialog, dialog, editKeys, menu, remember, toast, ui } from "./ui.js";
@@ -22,7 +22,7 @@ function renderHead() {
   const p = store.project;
   const st = store.status || {};
   clear(head);
-  head.append(h("span.brand", "TeleScore"));
+  head.append(h("span.wordmark", { role: "img", "aria-label": "CORBELscore", title: "CORBELscore" }));
   if (p) {
     const name = h("input.proj", { value: p.name, "aria-label": "Project name", title: "Project name. Click to rename.", spellcheck: false, size: Math.max(4, p.name.length + 1) });
     name.addEventListener("change", () => edit({ op: "meta", name: name.value }, "Rename project").catch((e) => toast(e.message, true)));
@@ -97,10 +97,11 @@ function startPage(el) {
   const recent = st.settings.recent || [];
   const rec = st.recovery;
   el.append(h("div.start",
+    h("div.start-hero", h("span.lockup", { role: "img", "aria-label": "CORBELscore. Live broadcast scoring solution." }, h("i"))),
     h("section",
       rec ? h("div.panel", { style: { marginBottom: "18px", borderColor: "var(--user)" } },
         h("h3", "Unsaved work was found"),
-        h("p.hint", `TeleScore closed without saving “${rec.name}” (${rec.at?.replace("T", " ") ?? "recently"}).`),
+        h("p.hint", `CORBELscore closed without saving “${rec.name}” (${rec.at?.replace("T", " ") ?? "recently"}).`),
         h("div.row", button("Restore it", () => attempt(() => call("/api/recovery", { restore: true })), { role: "accent" }),
           button("Discard", () => attempt(async () => { await call("/api/recovery", { restore: false }); store.state.recovery = null; renderStart(); }))))
         : null,
@@ -110,7 +111,7 @@ function startPage(el) {
     h("section",
       h("div.section-title", "Open"),
       h("div.col", button("Open a project…", () => openProject(), { big: true }),
-        h("p.hint", "TeleScore 1.x projects and earlier 2.0 files open too. They are converted, and the original file is left as it is.")),
+        h("p.hint", "TeleScore 1.x and 2.0 projects open too. They are converted, and the original file is left as it is.")),
       h("div.section-title", { style: { marginTop: "18px" } }, "Recent"),
       recent.length ? h("div.list", recent.map((r) => h("div.item", { tabindex: 0, title: r.path, onclick: () => openProject(r.path), onkeydown: (e) => e.key === "Enter" && openProject(r.path) },
         h("div.grow", h("div.name", r.name), h("div.sub", `${new Date(r.mtime).toLocaleString()} · ${r.folder}`)))))
@@ -149,7 +150,7 @@ async function openProject(path) {
   if (r && !r.cancelled) {
     freshView("locked");
     if (r.imported && r.notes?.length) {
-      dialog("Converted", h("div.col", h("p.hint", "This project came from an older TeleScore. Save it as a new .tsproj file; the original stays as it was."),
+      dialog("Converted", h("div.col", h("p.hint", "This project came from TeleScore. Save it as a new .corbel file; the original stays as it was."),
         h("ul", { style: { margin: 0, paddingLeft: "18px" } }, r.notes.map((n) => h("li.small", n)))));
     }
   }
@@ -160,7 +161,7 @@ async function save(as = false) {
   let path;
   if ((as || !store.project.path) && !store.state.host.dialogs) {
     const { ask } = await import("./ui.js");
-    path = await ask("Save project", "Full path of the .tsproj file", store.project.path || `${store.project.name}.tsproj`);
+    path = await ask("Save project", "Full path of the .corbel file", store.project.path || `${store.project.name}.corbel`);
     if (!path) return false;
   }
   const r = await attempt(() => call("/api/file", { op: as ? "saveAs" : "save", path }));
@@ -188,13 +189,13 @@ function settingsMenu(anchor) {
   const host = store.state.host;
   menu(anchor, [
     { title: "Colours" },
-    ...Object.keys(SCHEMES).map((name) => ({ label: (name === scheme ? "● " : "○ ") + name, run: () => setScheme(name) })),
+    ...Object.keys(SCHEMES).map((name) => ({ label: `${name === scheme ? "● " : "○ "}${name} · ${name === "Basalt" ? "dark" : "light"}`, run: () => setScheme(name) })),
     "-",
-    { label: `${s.global_keys ? "☑" : "☐"} Shortcuts work while TeleScore is in the background`, disabled: !host.globalKeys,
+    { label: `${s.global_keys ? "☑" : "☐"} Shortcuts work while CORBELscore is in the background`, disabled: !host.globalKeys,
       run: () => attempt(() => call("/api/settings", { global_keys: !s.global_keys })) },
     "-",
     { label: "Browser sources and feeds", disabled: !store.status.web?.running, run: () => window.open(store.status.web.url, "_blank") },
-    { label: "About TeleScore", run: about },
+    { label: "About CORBELscore", run: about },
   ]);
 }
 
@@ -205,9 +206,9 @@ function setScheme(name) {
 }
 
 function about() {
-  dialog("About TeleScore", h("div.col",
-    h("p", { style: { margin: 0 } }, h("b", `TeleScore ${store.state.version}`), " · open-source scoreboard and live scoring for streams and broadcast."),
-    h("p.hint", "Community continuation of TeleScore by the JumpShot team (riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035, Glenn). Licensed under the GNU Affero General Public License v3. Archivo font © The Archivo Project Authors, SIL Open Font License 1.1.")));
+  dialog("About CORBELscore", h("div.col",
+    h("p", { style: { margin: 0 } }, h("b", `CORBELscore ${store.state.version}`), " · live broadcast scoring solution."),
+    h("p.hint", "Built on TeleScore, the open-source scoring utility by the JumpShot team (riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035, Glenn): its engine, outputs and project format are the building blocks of CORBELscore. Licensed under the GNU Affero General Public License v3. Red Hat Display, Red Hat Text and Red Hat Mono © The Red Hat Project Authors; Archivo © The Archivo Project Authors; all under the SIL Open Font License 1.1.")));
 }
 
 // ---- notices ---------------------------------------------------------------------------
@@ -256,7 +257,7 @@ on("expired", async (x) => {
 // ---- wiring -------------------------------------------------------------------------------
 let lastHad = null;
 on("state", (s) => {
-  if (s.settings?.scheme && s.settings.scheme !== scheme) { scheme = s.settings.scheme; applyScheme(scheme); }
+  if (s.settings?.scheme && schemeName(s.settings.scheme) !== scheme) { scheme = schemeName(s.settings.scheme); applyScheme(scheme); }
   lastHad = !!s.project;
   renderHead();
   mounted?.unmount?.();
@@ -271,9 +272,9 @@ on("project", (p) => {
   if (!has && mounted?.name === "start") renderStart();
 });
 on("status", () => renderHead());
-on("settings", (s) => { if (s.scheme && s.scheme !== scheme) { scheme = s.scheme; applyScheme(scheme); } });
+on("settings", (s) => { if (s.scheme && schemeName(s.scheme) !== scheme) { scheme = schemeName(s.scheme); applyScheme(scheme); } });
 on("notice", (n) => notice(n.text, n.alert, n.alert ? 0 : 5000));
-on("disconnected", () => notice("Lost contact with the TeleScore service. Reconnecting…", true));
+on("disconnected", () => notice("Lost contact with the CORBELscore service. Reconnecting…", true));
 on("reconnected", () => notice("Reconnected.", false, 2000));
 window.addEventListener("blur", closeMenu);
 connect();

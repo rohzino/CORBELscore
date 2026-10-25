@@ -1,20 +1,20 @@
 @echo off
 rem ---------------------------------------------------------------------------
-rem  TeleScore launcher for Windows 10 / 11 (64-bit)
+rem  CORBELscore launcher for Windows 10 / 11 (64-bit)
 rem
-rem    TeleScore.bat               run TeleScore (sets itself up the first time)
-rem    TeleScore.bat game.tsproj   run and open a project (or drag one onto this file)
-rem    TeleScore.bat test          run the test suite and a check of the app window
-rem    TeleScore.bat build         make a portable copy in dist\TeleScore
-rem    TeleScore.bat update        download the runtime again
+rem    CORBELscore.bat               run CORBELscore (sets itself up the first time)
+rem    CORBELscore.bat game.corbel    run and open a project (or drag one onto this file)
+rem    CORBELscore.bat test          run the test suite and a check of the app window
+rem    CORBELscore.bat build         make a portable copy in dist\CORBELscore
+rem    CORBELscore.bat update        download the runtime again
 rem
-rem  TeleScore runs on Electron. The first run downloads it (about 160 MB) from
+rem  CORBELscore runs on Electron. The first run downloads it (about 160 MB) from
 rem  GitHub into the runtime folder and checks its SHA-256 before using it.
 rem  Nothing is installed on the computer; delete the folder to remove it.
 rem ---------------------------------------------------------------------------
 setlocal
 cd /d "%~dp0"
-title TeleScore
+title CORBELscore
 
 set "EV=44.9.3"
 set "ESHA=41a1ffa0541cb0f2c9b9fe920dd2cef1793ad0ea2ada1a9582958880f4d1b23c"
@@ -27,7 +27,7 @@ if not exist "%RT%\electron.exe" call :setup || goto :fail
 if not exist "%RT%\version" goto :fail
 set /p HAVE=<"%RT%\version"
 if not "%HAVE%"=="%EV%" (
-    echo The runtime is %HAVE%, TeleScore wants %EV%. Downloading the right one...
+    echo The runtime is %HAVE%, CORBELscore wants %EV%. Downloading the right one...
     rmdir /s /q "%RT%"
     call :setup || goto :fail
 )
@@ -41,7 +41,7 @@ exit /b 0
 
 rem ---- first-run setup -------------------------------------------------------
 :setup
-echo Setting up TeleScore for the first time.
+echo Setting up CORBELscore for the first time.
 echo Downloading Electron %EV% from GitHub (about 160 MB)...
 if not exist "%RT%" mkdir "%RT%"
 set "ZIP=%TEMP%\%EZIP%"
@@ -56,7 +56,7 @@ if not exist "%ZIP%" (
     echo.
     echo Could not download %EURL%
     echo Check the internet connection, or download that file yourself, put it in
-    echo %TEMP% and run TeleScore.bat again.
+    echo %TEMP% and run CORBELscore.bat again.
     exit /b 1
 )
 echo Checking the download...
@@ -91,12 +91,12 @@ set "UNIT=%errorlevel%"
 set "ELECTRON_RUN_AS_NODE="
 echo.
 echo Checking the app window, pictures and shortcuts...
-set "TELESCORE_SMOKE=%TEMP%\telescore-check"
-if exist "%TELESCORE_SMOKE%" rmdir /s /q "%TELESCORE_SMOKE%"
+set "CORBEL_SMOKE=%TEMP%\corbelscore-check"
+if exist "%CORBEL_SMOKE%" rmdir /s /q "%CORBEL_SMOKE%"
 "%RT%\electron.exe" .
 set "SMOKE=%errorlevel%"
-if exist "%TELESCORE_SMOKE%\report.txt" type "%TELESCORE_SMOKE%\report.txt"
-echo Pictures from the check are in %TELESCORE_SMOKE%
+if exist "%CORBEL_SMOKE%\report.txt" type "%CORBEL_SMOKE%\report.txt"
+echo Pictures from the check are in %CORBEL_SMOKE%
 echo.
 if "%UNIT%%SMOKE%"=="00" (echo All checks passed.) else (echo Some checks FAILED - see above.)
 pause
@@ -104,20 +104,20 @@ exit /b 0
 
 rem ---- portable build ----------------------------------------------------------
 :build
-echo Making a portable copy in dist\TeleScore ...
-if exist "dist\TeleScore" rmdir /s /q "dist\TeleScore"
-robocopy "%RT%" "dist\TeleScore" /E /NFL /NDL /NJH /NJS /NP >nul
-ren "dist\TeleScore\electron.exe" TeleScore.exe
-if exist "dist\TeleScore\resources\default_app.asar" del "dist\TeleScore\resources\default_app.asar"
-robocopy "app" "dist\TeleScore\resources\app\app" /E /NFL /NDL /NJH /NJS /NP >nul
-copy /y package.json "dist\TeleScore\resources\app\" >nul
-copy /y LICENSE "dist\TeleScore\resources\app\" >nul 2>&1
-echo Done: dist\TeleScore\TeleScore.exe  (copy the whole TeleScore folder to move it)
+echo Making a portable copy in dist\CORBELscore ...
+if exist "dist\CORBELscore" rmdir /s /q "dist\CORBELscore"
+robocopy "%RT%" "dist\CORBELscore" /E /NFL /NDL /NJH /NJS /NP >nul
+ren "dist\CORBELscore\electron.exe" CORBELscore.exe
+if exist "dist\CORBELscore\resources\default_app.asar" del "dist\CORBELscore\resources\default_app.asar"
+robocopy "app" "dist\CORBELscore\resources\app\app" /E /NFL /NDL /NJH /NJS /NP >nul
+copy /y package.json "dist\CORBELscore\resources\app\" >nul
+copy /y LICENSE "dist\CORBELscore\resources\app\" >nul 2>&1
+echo Done: dist\CORBELscore\CORBELscore.exe  (copy the whole CORBELscore folder to move it)
 pause
 exit /b 0
 
 :fail
 echo.
-echo TeleScore could not start. See the message above.
+echo CORBELscore could not start. See the message above.
 pause
 exit /b 1

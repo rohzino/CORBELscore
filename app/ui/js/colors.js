@@ -1,12 +1,23 @@
-// Colour schemes and the Keystone derivation recipe: nine colours per scheme,
-// everything else derived, contrast-checked. Applied as CSS variables.
+// CORBELscore colours: Basalt black, Limestone cream (Pantone P 179-1 U) and
+// Patina cyan, with Brass for "editing / careful" and Terracotta for errors.
+// Nine colours per scheme; everything else is derived and contrast-checked,
+// then applied as CSS variables. See docs/design-system.md.
+
+export const PALETTE = {
+  basalt: "#0c0d0d", slate: "#151717", slate2: "#1e2121", joint: "#2e3232",
+  limestone: "#f5f5f1",            // Pantone P 179-1 U
+  patina: "#4cc9d6", patinaDeep: "#0b7380",
+  brass: "#e4b363", brassDeep: "#9a6512",
+  terracotta: "#ef6a5e", terracottaDeep: "#b3261e",
+};
+const P = PALETTE;
 
 export const SCHEMES = {
-  "Keystone Dark": { bg: "#0f1513", panel: "#18211e", head: "#0a0f0d", ink: "#e8f1ec", accent: "#3ddc84", hi: "#5ad1e6", user: "#ffb454", alert: "#ff6b6b", mark: "#3ddc84" },
-  "Keystone Light": { bg: "#eef1ee", panel: "#ffffff", head: "#12201a", ink: "#14201b", accent: "#0b7a3b", hi: "#0e7490", user: "#f5a524", alert: "#c62828", mark: "#0b7a3b" },
-  Rally: { bg: "#0b111c", panel: "#121a28", head: "#070b12", ink: "#f2f7fa", accent: "#4fd1c5", hi: "#3d8bfd", user: "#ffb547", alert: "#ff5a7a", mark: "#4fd1c5" },
+  Basalt: { bg: P.basalt, panel: P.slate, head: "#080909", ink: P.limestone, accent: P.patina, hi: P.patina, user: P.brass, alert: P.terracotta, mark: P.limestone },
+  Limestone: { bg: P.limestone, panel: "#fbfbf8", head: P.basalt, ink: P.basalt, accent: P.patinaDeep, hi: P.patinaDeep, user: P.brassDeep, alert: P.terracottaDeep, mark: P.basalt },
 };
-export const DEFAULT_SCHEME = "Keystone Dark";
+export const DEFAULT_SCHEME = "Basalt";
+export const schemeName = (name) => (SCHEMES[name] ? name : DEFAULT_SCHEME);
 
 const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const hex = (c) => "#" + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
@@ -18,7 +29,8 @@ export function luminance(h) {
   return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
 }
 export function contrast(a, b) { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); }
-export const inkOn = (fill) => (contrast("#010101", fill) >= contrast("#ffffff", fill) ? "#010101" : "#ffffff");
+// Text on a fill: Basalt or Limestone, whichever reads better (never pure black or white).
+export const inkOn = (fill) => (contrast(PALETTE.basalt, fill) >= contrast(PALETTE.limestone, fill) ? PALETTE.basalt : PALETTE.limestone);
 function mixUntil(a, b, start, against, target) {
   for (let t = start; t <= 1.0001; t += 0.01) { const c = mix(a, b, t); if (against.every((g) => contrast(c, g) >= target)) return c; }
   return a;
