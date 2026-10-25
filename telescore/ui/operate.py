@@ -360,10 +360,14 @@ class PanelButton(QPushButton):
         super().__init__(parent)
         self.setProperty("role", b.role if b.role != "neutral" else "")
         self.setProperty("big", True)
-        self.setMinimumHeight(52)
+        self.setFixedHeight(self.HEIGHT)
+        self.setMinimumWidth(self.MIN_WIDTH)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 4, 8, 4)
+        # The name gets the full width (two lines fit); the shortcut sits in the
+        # bottom-right corner instead of squeezing the name into three lines.
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(10, 6, 8, 5)
+        lay.setSpacing(0)
         name = QLabel(b.label)
         name.setFont(theme.font(14.5, 800))
         name.setWordWrap(True)
@@ -373,17 +377,68 @@ class PanelButton(QPushButton):
         if b.role == "alert":
             ink = c["alert-text"]
         name.setStyleSheet(f"color:{ink}; background:transparent;")
+        name.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        name.setMinimumWidth(0)
         lay.addWidget(name, 1)
         if b.hotkey:
             k = Kbd(b.hotkey)
             k.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-            lay.addWidget(k, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+            lay.addWidget(k, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
         self.setToolTip(f"{b.label}" + (f"  ·  shortcut {b.hotkey}" if b.hotkey else ""))
         self.clicked.connect(lambda _=False: run())
         self.setText("")
 
+    HEIGHT = 66
+    MIN_WIDTH = 112
+
     def sizeHint(self):
-        return QSize(150, 52)
+        return QSize(150, self.HEIGHT)
+
+    def minimumSizeHint(self):
+        return QSize(self.MIN_WIDTH, self.HEIGHT)
+
+
+class ButtonGrid(QWidget):
+    """A panel's buttons in its set number of columns, or fewer when the
+    space is too narrow, so buttons never spill sideways or get cut off."""
+
+    GAP = 8
+
+    def __init__(self, buttons: List[QWidget], columns: int, parent=None):
+        super().__init__(parent)
+        self.buttons = buttons
+        self.columns = max(1, columns)
+        self.grid = QGridLayout(self)
+        self.grid.setContentsMargins(0, 10, 0, 0)
+        self.grid.setSpacing(self.GAP)
+        self._cols = 0
+        self._place(self.columns)
+
+    def fit_columns(self, width: int) -> int:
+        per = PanelButton.MIN_WIDTH + self.GAP
+        return max(1, min(self.columns, (width + self.GAP) // per))
+
+    def _place(self, cols: int) -> None:
+        if cols == self._cols:
+            return
+        self._cols = cols
+        for b in self.buttons:
+            self.grid.removeWidget(b)
+        for c in range(self.grid.columnCount()):
+            self.grid.setColumnStretch(c, 0)
+        for i, b in enumerate(self.buttons):
+            r, c = divmod(i, cols)
+            self.grid.addWidget(b, r, c)
+        for c in range(cols):
+            self.grid.setColumnStretch(c, 1)
+        self.grid.setRowStretch(self.grid.rowCount(), 1)
+
+    def minimumSizeHint(self):
+        return QSize(PanelButton.MIN_WIDTH, super().minimumSizeHint().height())
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        self._place(self.fit_columns(ev.size().width()))
 
 
 class OperateTab(QWidget):
@@ -417,6 +472,7 @@ class OperateTab(QWidget):
         rl.setSpacing(14)
         self.panel_tabs = QTabWidget()
         self.panel_tabs.setDocumentMode(True)
+        self.panel_tabs.tabBar().setDrawBase(False)
         rl.addWidget(self.panel_tabs, 3)
         pv, pvl = panel(pad=10, spacing=8)
         top = QHBoxLayout()
@@ -505,20 +561,18 @@ class OperateTab(QWidget):
     def rebuild_buttons(self) -> None:
         self.panel_tabs.clear()
         for p in self.session.project.panels:
-            page = QWidget()
-            grid = QGridLayout(page)
-            grid.setContentsMargins(0, 10, 0, 0)
-            grid.setSpacing(8)
-            cols = max(1, p.columns)
-            for i, b in enumerate(p.buttons):
-                r, c = divmod(i, cols)
-                grid.addWidget(PanelButton(b, lambda b=b: self.session.act(b.action)), r, c)
-            if not p.buttons:
-                grid.addWidget(label("No buttons on this panel. Add them in Setup → Buttons.", "small", muted=True),
-                               0, 0)
-            grid.setRowStretch(grid.rowCount(), 1)
+            if p.buttons:
+                page: QWidget = ButtonGrid([PanelButton(b, lambda b=b: self.session.act(b.action))
+                                            for b in p.buttons], p.columns)
+            else:
+                page = QWidget()
+                pl = QVBoxLayout(page)
+                pl.setContentsMargins(0, 10, 0, 0)
+                pl.addWidget(label("No buttons on this panel. Add them in Setup → Buttons.", "small", muted=True))
+                pl.addStretch(1)
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             scroll.setWidget(page)
             self.panel_tabs.addTab(scroll, p.name)
 

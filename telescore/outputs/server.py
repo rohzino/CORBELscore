@@ -31,7 +31,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, Dict, List, Optional
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from ..core.engine import Snapshot
+from ..core.engine import Snapshot, Ticket
 from .formats import XML_PROFILES, state_json
 from .overlay import overlay_html
 
@@ -46,7 +46,7 @@ class ServerData:
     allowed assets on the UI thread; the server only reads references."""
 
     def __init__(self, snapshot: Callable[[], Snapshot],
-                 submit: Callable[[dict, Callable[[Optional[str]], None]], None]):
+                 submit: Callable[[dict, Callable[[Optional[str]], None], Ticket], None]):
         self.snapshot = snapshot
         self.submit = submit
         self.boards: List[dict] = []
@@ -188,9 +188,16 @@ class _Handler(BaseHTTPRequestHandler):
             result["error"] = err
             done.set()
 
-        self.data.submit(action, finished)
+        ticket = Ticket()
+        self.data.submit(action, finished, ticket)
         if not done.wait(2.0):
-            return self._json(504, {"ok": False, "error": "TeleScore did not answer in time. Is it running?"})
+            if ticket.withdraw():
+                # Withdrawn before it ran, so a retry can never score twice.
+                return self._json(504, {"ok": False, "error": "TeleScore was busy and did not run the action. "
+                                                              "It is safe to try again."})
+            done.wait(5.0)                    # it started just now: let it finish
+            if not done.is_set():
+                return self._json(504, {"ok": False, "error": "The action started but did not finish in time."})
         if result["error"]:
             return self._json(400, {"ok": False, "error": result["error"]})
         return self._json(200, {"ok": True})

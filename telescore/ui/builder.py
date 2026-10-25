@@ -378,6 +378,7 @@ class Canvas(QGraphicsView):
         changes size until the user zooms. A hidden tab's view has no real
         size yet, so fitting waits until it is shown."""
         self._fit_pending = True
+        self._scrollbars(False)               # fitted: nothing to scroll to
         if self.board is None or not self.isVisible() or self.viewport().width() < 50:
             return
         r = QRectF(0, 0, self.board.width, self.board.height).adjusted(-30, -30, 30, 30)
@@ -385,7 +386,13 @@ class Canvas(QGraphicsView):
 
     def actual_size(self) -> None:
         self._fit_pending = False
+        self._scrollbars(True)
         self.resetTransform()
+
+    def _scrollbars(self, on: bool) -> None:
+        pol = Qt.ScrollBarPolicy.ScrollBarAsNeeded if on else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        self.setHorizontalScrollBarPolicy(pol)
+        self.setVerticalScrollBarPolicy(pol)
 
     def showEvent(self, ev):
         super().showEvent(ev)
@@ -398,6 +405,7 @@ class Canvas(QGraphicsView):
             s = self.scale_factor() * f
             if 0.05 <= s <= 8:
                 self._fit_pending = False
+                self._scrollbars(True)
                 self.scale(f, f)
             ev.accept()
         else:
@@ -1067,9 +1075,9 @@ class BuildTab(QWidget):
         self.layers.setHeaderLabels(["Name", "Show", "Lock"])
         self.layers.setRootIsDecorated(False)
         self.layers.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.layers.setColumnWidth(0, 150)
-        self.layers.setColumnWidth(1, 44)
-        self.layers.setColumnWidth(2, 44)
+        self.layers.setColumnWidth(0, 140)
+        self.layers.setColumnWidth(1, 56)
+        self.layers.setColumnWidth(2, 50)
         self.layers.itemSelectionChanged.connect(self._layers_selected)
         self.layers.itemChanged.connect(self._layer_edited)
         ll.addWidget(self.layers, 3)

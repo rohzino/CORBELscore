@@ -21,6 +21,9 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Offscreen Qt looks for fonts in its own folder, which pip's PyQt6 leaves empty.
+os.environ.setdefault("QT_QPA_FONTDIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                     "telescore", "assets", "fonts"))
 
 try:
     from PyQt6.QtCore import QPointF, QSettings, Qt
@@ -73,6 +76,10 @@ class UISmokeTests(unittest.TestCase):
         if win.session is not None:
             win.session.set_dirty(False)
         win.close()
+        # Delete the window now: widgets that outlive QApplication crash Python on exit.
+        from PyQt6.QtCore import QCoreApplication, QEvent
+        win.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.wait(20)
 
     def shot(self, widget, name):
@@ -312,13 +319,18 @@ class UISmokeTests(unittest.TestCase):
         with open(os.path.join(folder, "text", "home.score.txt"), encoding="utf-8") as fh:
             self.assertEqual(fh.read(), "2")
         self.assertTrue(os.path.isfile(os.path.join(folder, "vmix.xml")))
-        # web server answers, and remote actions run on the GUI thread
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/action?do=add&field=away.score&amount=5",
-                                    timeout=5):
-            pass
+        # web server answers, and remote actions run on the GUI thread. The calls
+        # are made from another thread: the GUI thread must stay free to run them.
+        import threading
+        first = threading.Thread(target=lambda: urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/action?do=add&field=away.score&amount=5", timeout=5).close())
+        first.start()
+        start = time.monotonic()
+        while first.is_alive() and time.monotonic() - start < 5:
+            self.wait(20)
+        self.assertEqual(p.engine.snapshot().values["away.score"], "5")
         start = time.monotonic()
         result = None
-        import threading
 
         def call():
             nonlocal result
@@ -488,6 +500,12 @@ class UISmokeTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        from PyQt6.QtCore import QCoreApplication, QEvent
+        for w in QApplication.topLevelWidgets():
+            w.close()
+            w.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        cls.app.processEvents()
         print(f"\nScreenshots: {SHOTS}")
 
 

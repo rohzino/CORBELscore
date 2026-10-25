@@ -296,6 +296,20 @@ class EngineTests(unittest.TestCase):
         e.tick(10.0)
         self.assertEqual(e.field("home.penalties").entries[0]["ms"], 110_000)
 
+    def test_ticket_withdraws_only_before_start(self):
+        from telescore.core.engine import Ticket
+        e = PRESETS["Basketball"]().engine
+        t = Ticket()
+        e.submit({"do": "add", "field": "home.score", "amount": 2}, None, t)
+        self.assertTrue(t.withdraw())
+        e.tick()
+        self.assertEqual(e.snapshot().values["home.score"], "0")
+        t2 = Ticket()
+        e.submit({"do": "add", "field": "home.score", "amount": 2}, None, t2)
+        e.tick()
+        self.assertFalse(t2.withdraw())                   # already ran: too late to withdraw
+        self.assertEqual(e.snapshot().values["home.score"], "2")
+
     def test_expiry_listener_and_queue(self):
         e = Engine([ClockField("shot", clock=Clock(initial_ms=1000))])
         hits = []

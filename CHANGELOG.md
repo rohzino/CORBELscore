@@ -31,6 +31,16 @@ Found on the first real Windows run:
 - The header said "Saved" for a project that had never been saved.
 - The board was drawn thumbnail-sized when Design first opened. It now fits the canvas and keeps fitting until you zoom.
 - The inspector no longer runs off the right edge with a sideways scroll bar.
+- Operate's button grid spilled sideways and clipped labels such as "Start / stop both". The grid now drops columns when narrow, and a button's shortcut sits in its corner.
+- Basketball scores step +1/+2/+3 and football +1/+2/+3/+6 on their cards.
+- A remote action the app was too busy to run within two seconds is withdrawn. The 504 then means "not run, safe to retry", so a Stream Deck retry can never score twice.
+- Smaller fixes:
+  - no stray line above the tabs, and no empty band under the header;
+  - the selected table row is no longer striped cell by cell;
+  - the Logic "Value" label hides along with its box;
+  - list tick-boxes are visible;
+  - the canvas hides its scroll bars while fitted.
+- `TeleScore.bat test` reported success after a failure when Python exited abnormally. It now reports any non-zero exit code.
 
 ## 2.0.0a1
 

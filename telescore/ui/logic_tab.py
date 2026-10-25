@@ -226,12 +226,15 @@ class LogicTab(QWidget):
         value = QLineEdit(c.value)
         value.setPlaceholderText("value · NULL means empty · times like 2:00 compare as time")
         value.editingFinished.connect(lambda: self._set("value", value.text()))
-        value.setVisible(c.op not in NO_VALUE_OPS)
-        form.addRow(caps("Value"), value)
+        value_cap = caps("Value")
+        form.addRow(value_cap, value)
+        for w in (value, value_cap):          # the label goes with its box when a test needs no value
+            w.setVisible(c.op not in NO_VALUE_OPS)
 
         def op_changed(_):
             self._set("op", op.currentData())
-            value.setVisible(op.currentData() not in NO_VALUE_OPS)
+            for w in (value, value_cap):
+                w.setVisible(op.currentData() not in NO_VALUE_OPS)
         op.activated.connect(op_changed)
         bl.addLayout(form)
         self.editor.addWidget(box)

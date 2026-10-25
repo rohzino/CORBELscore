@@ -78,9 +78,12 @@ echo Installing test tools...
 "%VPY%" -m pip install --disable-pip-version-check -q lxml
 set "TELESCORE_SHOTS=%~dp0test-screenshots"
 "%VPY%" -m unittest discover -s tests -v
-if errorlevel 1 (
+rem  "if errorlevel 1" misses negative codes, which is how a crash on exit shows up.
+set "RC=%errorlevel%"
+if not "%RC%"=="0" (
     echo.
-    echo  Some tests failed. Copy the messages above to Claude.
+    echo  Some tests failed, or Python stopped abnormally ^(exit code %RC%^).
+    echo  Copy the messages above to Claude.
 ) else (
     echo.
     echo  All tests passed. Screenshots of every tab are in:

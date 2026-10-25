@@ -31,13 +31,13 @@ ONAIR = {
 }
 
 
-def _teams(home="Home", away="Away", hs="HOM", as_="AWY") -> List:
+def _teams(home="Home", away="Away", hs="HOM", as_="AWY", steps=(1,)) -> List:
     out = []
     for side, name, short, color in (("away", away, as_, "#5ad1e6"), ("home", home, hs, "#ffb454")):
         out += [
             TextField(f"{side}.name", f"{side.title()} name", value=name),
             TextField(f"{side}.short", f"{side.title()} abbreviation", value=short, uppercase=True),
-            CounterField(f"{side}.score", f"{side.title()} score", steps=[1]),
+            CounterField(f"{side}.score", f"{side.title()} score", steps=list(steps)),
             TextField(f"{side}.color", f"{side.title()} colour", value=color),
             ImageField(f"{side}.logo", f"{side.title()} logo"),
         ]
@@ -147,7 +147,7 @@ def _score_buttons(points=(1,)) -> List[Button]:
 def basketball() -> Project:
     shot = Clock(countdown=True, initial_ms=24_000, fmt="s", tenths_under_ms=5_000, tenths_fmt="s.t",
                  blank_at_zero=False)
-    fields = _teams() + [
+    fields = _teams(steps=(1, 2, 3)) + [
         _clock(minutes=10),
         ClockField("clock.shot", "Shot clock", clock=shot),
         ChoiceField("period", "Quarter", options=["1st", "2nd", "3rd", "4th", "OT"]),
@@ -243,7 +243,7 @@ def soccer() -> Project:
 
 def football() -> Project:
     play = Clock(countdown=True, initial_ms=40_000, fmt="s")
-    fields = _teams() + [
+    fields = _teams(steps=(1, 2, 3, 6)) + [
         _clock(minutes=15, tenths=False),
         ClockField("clock.play", "Play clock", clock=play),
         ChoiceField("period", "Quarter", options=["1st", "2nd", "3rd", "4th", "OT"]),

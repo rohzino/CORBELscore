@@ -138,10 +138,15 @@ class MainWindow(QMainWindow):
         self.header = HeaderBar()
         cl.addWidget(self.header)
         self.notice = Notice()
-        nl = QHBoxLayout()
+        # The notice's margin lives on a holder that hides with it, so no empty
+        # band sits between the header and the tabs when there is no message.
+        self.notice_holder = QWidget()
+        nl = QHBoxLayout(self.notice_holder)
         nl.setContentsMargins(16, 8, 16, 0)
         nl.addWidget(self.notice)
-        cl.addLayout(nl)
+        self.notice_holder.setVisible(False)
+        self.notice.installEventFilter(self)
+        cl.addWidget(self.notice_holder)
         self.stack = QStackedWidget()
         cl.addWidget(self.stack, 1)
         self.setCentralWidget(central)
@@ -319,6 +324,7 @@ class MainWindow(QMainWindow):
         s = self.session
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
+        tabs.tabBar().setDrawBase(False)
         self.operate = OperateTab(s)
         self.operate.open_projector.connect(self.open_projector)
         self.operate.copy_url.connect(self._copy_board_url)
@@ -589,6 +595,13 @@ class MainWindow(QMainWindow):
                           "team (riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035, Glenn)."
                           "<br><br>Licensed under the GNU Affero General Public License v3. Archivo font "
                           "© The Archivo Project Authors, SIL Open Font License 1.1.")
+
+    def eventFilter(self, obj, ev):
+        from PyQt6.QtCore import QEvent
+        # ShowToParent/HideToParent arrive even while the holder itself is hidden.
+        if obj is self.notice and ev.type() in (QEvent.Type.ShowToParent, QEvent.Type.HideToParent):
+            self.notice_holder.setVisible(ev.type() == QEvent.Type.ShowToParent)
+        return super().eventFilter(obj, ev)
 
     def closeEvent(self, ev):
         if not self._confirm_discard():

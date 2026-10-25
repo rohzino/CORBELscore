@@ -231,6 +231,12 @@ QCheckBox {{ spacing: 8px; background: transparent; }}
 QCheckBox::indicator {{ width: 16px; height: 16px; border: 1px solid {c['rule-strong']}; border-radius: 3px; background: {c['field']}; }}
 QCheckBox::indicator:checked {{ background: {c['accent']}; border-color: {c['accent']}; {check} }}
 QCheckBox::indicator:focus {{ border: 2px solid {c['hi']}; }}
+QTreeView::indicator, QListView::indicator, QTableView::indicator {{
+    width: 14px; height: 14px; border: 1px solid {c['rule-strong']}; border-radius: 3px; background: {c['field']};
+}}
+QTreeView::indicator:checked, QListView::indicator:checked, QTableView::indicator:checked {{
+    background: {c['accent']}; border-color: {c['accent']}; {check}
+}}
 QRadioButton {{ background: transparent; }}
 
 /* Tabs: capitals, 4px hi underline under the active one */
@@ -263,6 +269,8 @@ QListWidget::item:selected, QTreeWidget::item:selected, QTableWidget::item:selec
     background: {c['sel']}; color: {c['ink']}; border-left: 3px solid {c['hi']};
 }}
 QListWidget::item:hover, QTreeWidget::item:hover, QTableWidget::item:hover {{ background: {c['hover']}; }}
+/* In a table the edge would repeat in every cell of the row, so tables mark the row with fill only */
+QTableWidget::item:selected, QTableView::item:selected {{ border-left: 0; }}
 QHeaderView {{ background: {c['panel']}; border: 0; }}
 QHeaderView::section {{
     background: {c['panel']}; color: {c['muted']}; border: 0; border-bottom: 1px solid {c['rule']};

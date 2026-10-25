@@ -193,7 +193,8 @@ class ServerTests(unittest.TestCase):
                 text = body.decode("utf-8") if ("text" in ctype or "json" in ctype or "xml" in ctype) else body
                 return r.status, text, r.headers
         except urllib.error.HTTPError as e:
-            return e.code, e.read().decode("utf-8"), e.headers
+            with e:
+                return e.code, e.read().decode("utf-8"), e.headers
 
     def test_pages_and_feeds(self):
         code, body, _ = self.get("/")
@@ -225,6 +226,17 @@ class ServerTests(unittest.TestCase):
         self.assertIn("no field", json.loads(body)["error"])
         code, body, _ = self.get("/api/action?do=add&field=home.score&amount=lots")
         self.assertEqual(code, 400)
+
+    def test_busy_app_withdraws_the_action(self):
+        """A 504 means "did not run", so a Stream Deck retry can never score twice."""
+        self.stop.set()                                   # the app stops ticking (busy)
+        self.pumper.join()
+        before = self.engine.snapshot().values["home.score"]
+        code, body, _ = self.get("/api/action?do=add&field=home.score&amount=3")
+        self.assertEqual(code, 504)
+        self.assertIn("safe to try again", json.loads(body)["error"])
+        self.engine.tick()                                # the app catches up later...
+        self.assertEqual(self.engine.snapshot().values["home.score"], before)   # ...and does not score late
 
     def test_token(self):
         self.data.token = "s3cret"

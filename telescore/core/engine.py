@@ -21,9 +21,33 @@ from .fields import (ChoiceField, ClockField, CounterField, Field, ImageField, P
 from .logic import Condition, Logic, apply_rules
 from .timefmt import TimeParseError, parse_time
 
-__all__ = ["Engine", "ActionError", "Snapshot", "ACTIONS", "FX_KEY", "BASE_KEY"]
+__all__ = ["Engine", "ActionError", "Snapshot", "Ticket", "ACTIONS", "FX_KEY", "BASE_KEY"]
 
 Listener = Callable[["Snapshot", set], None]
+
+
+class Ticket:
+    """Lets whoever submitted an action withdraw it until it starts, so a
+    remote caller that gave up waiting is never surprised by a late score."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._state = "waiting"
+
+    def withdraw(self) -> bool:
+        """True when the action had not started and now never will."""
+        with self._lock:
+            if self._state == "waiting":
+                self._state = "withdrawn"
+                return True
+            return False
+
+    def start(self) -> bool:
+        with self._lock:
+            if self._state == "withdrawn":
+                return False
+            self._state = "started"
+            return True
 
 
 class ActionError(ValueError):
@@ -114,7 +138,7 @@ class Engine:
             self.add_field(f)
         self._listeners: List[Listener] = []
         self._expired_listeners: List[Callable[[str], None]] = []
-        self._inbox: "queue.Queue[Tuple[dict, Optional[Callable]]]" = queue.Queue()
+        self._inbox: "queue.Queue[Tuple[dict, Optional[Callable], Optional[Ticket]]]" = queue.Queue()
         self._lock = threading.Lock()
         self._snapshot: Optional[Snapshot] = None
         self._seq = 0
@@ -201,10 +225,12 @@ class Engine:
         self._expired_listeners.append(fn)
 
     # ----- actions ---------------------------------------------------------
-    def submit(self, action: dict, done: Optional[Callable[[Optional[str]], None]] = None) -> None:
+    def submit(self, action: dict, done: Optional[Callable[[Optional[str]], None]] = None,
+               ticket: Optional["Ticket"] = None) -> None:
         """Queue an action from any thread. ``done(error_or_None)`` is called on
-        the engine thread after it runs."""
-        self._inbox.put((action, done))
+        the engine thread after it runs. With a :class:`Ticket` the caller can
+        withdraw the action until the moment it starts."""
+        self._inbox.put((action, done, ticket))
 
     def perform(self, action: dict, t: Optional[float] = None) -> None:
         """Run one action now (engine thread only) and publish the result."""
@@ -431,9 +457,11 @@ class Engine:
                 del self.logic_errors[:-20]
         while True:
             try:
-                action, done = self._inbox.get_nowait()
+                action, done, ticket = self._inbox.get_nowait()
             except queue.Empty:
                 break
+            if ticket is not None and not ticket.start():
+                continue                      # withdrawn: the caller was already told it did not run
             err = None
             try:
                 self.perform(action, t)
