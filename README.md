@@ -2,60 +2,62 @@
 
 # TeleScore 2
 
-Open-source scoreboard and live scoring for streams and broadcast. Keep score in one window. The scores go out as text files, XML, JSON, browser sources for OBS and vMix, PNG pictures and a full-screen projector window.
+Open-source scoreboard and live scoring for streams and broadcast. Keep score in one window. The scores go out as text files, XML (generic, vMix, Ross XPression, Chyron), JSON, browser sources for OBS and vMix, PNG pictures and a full-screen projector window.
 
 This is a community continuation of [TeleScore](https://github.com/JumpShot-Interactive/TeleScore) by the JumpShot team, rebuilt from the ground up. It is still licensed under the AGPL-3.0. See [AUDIT.md](AUDIT.md) for what was wrong in 1.0.3 and how 2.0 fixes it, and [CHANGELOG.md](CHANGELOG.md) for what is new.
 
 ## What it does
 
-TeleScore has three tabs:
+TeleScore has two tabs.
 
-- **Operate.** Each field gets a card: clocks with Start/Stop, ±1 s and ±1 min, and typed times; score buttons; text, choices, on/off, penalties and pictures. Your own buttons sit beside them with their shortcuts, next to a live preview of any board. Every action can be undone.
-- **Design**, with three sections across the top:
-  - **Boards** is the scoreboard designer. Boards are fixed canvases (1920 × 1080 by default). Drag and resize with eight handles, and elements snap to a grid and to other elements. You can align, distribute, reorder, copy and paste, and undo or redo. Drag a field onto the board to show it. Text shrinks to fit, colours can follow fields such as `{home.color}`, and an element can be shown only while a field is on.
-  - **Logic** holds SportzSuite-style conditions: "if `home.timeouts` changes by -1, then animate the time-out graphic", or "if the clock has value 0:00, then show FINAL". Together with rules ("0:00=FINAL") and overrides, they shape the text files and XML as well as the graphics. See [docs/logic.md](docs/logic.md).
-  - **Animations** has thirty-one built-in moves: fly, wipe, fade, slide, pop, drop, flash, pulse, shake and bump. You can also make your own: offset, scale, opacity, wipe, easing, delay and repeat. Elements animate when they appear, disappear or change, or when a condition says so. Animations show in browser sources, projector windows and the builder preview.
-- **Setup**, with four sections down the left:
-  - **Fields**: counters, text, on/off, choices, clocks, penalties and pictures. Renaming a field updates every board and button that uses it.
-  - **Live data**: Sportzcast scoreboard data over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML file. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
-  - **Buttons**: a button runs one or more actions as one undo step, for example "Next quarter: next period, reset game clock, reset shot clock". Any button can have a keyboard shortcut.
-  - **Outputs**:
-    - Text files: one per value, for OBS Text sources.
-    - XML for vMix, Ross XPression and Chyron.
-    - JSON.
-    - A local web server for browser sources, data feeds and remote control (Stream Deck, Bitfocus Companion, any HTTP request).
-    - PNG pictures of boards.
+**Control** is where you run the game and where you arrange how you run it. A switch at the top right flips it between two modes:
+
+- **Locked** (for the game): your controls fill the window and every button is live. Rows stretch so a page fits the screen without scrolling.
+- **Edit** (for setting up): the controls become a layout you arrange, between two side panels.
+  - Left, the **Library**: Fields, Buttons, Live data and Outputs. Drag a field or button onto the page to get its control.
+  - Middle, the **layout**: a 24-column grid. Drag to move, drag a corner to resize, or use the arrow keys (Shift + arrows resizes). Other controls move out of the way.
+  - Right, **Properties** of whatever is selected: the control's size, the field's rules, live key and override, a button's steps and shortcut.
+
+  Controls do not fire while you edit, so nothing goes to air by accident; shortcuts still work. An amber EDITING band and a dotted grid make the mode impossible to miss. Ctrl+Z undoes layout and design changes but never rewinds a score or a clock.
+
+Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Companion: right-click a page tab to rename, move or delete it. Each field type has its own control: clocks with Start/Stop, ±1 s and ±1 min; counters with their steps; choices as a row of buttons; on/off, text, penalties and pictures. Your own buttons run several steps as one undo step ("Next quarter: next period, reset game clock, reset shot clock") and can have a keyboard shortcut. A button does not need to be on a page; its shortcut works anyway.
+
+**View** is what goes out, in two sections:
+
+- **Graphics**, the scoreboard designer. Boards are fixed canvases (1920 × 1080 by default). Elements snap to each other and to the board; align, distribute, reorder, copy and paste, zoom and pan. Drag a field onto the board to show it. Text shrinks to fit, colours can follow fields such as `{home.color}`. Here too are:
+  - **Logic**: SportzSuite-style conditions, such as "if `home.timeouts` changes by -1, animate the time-out graphic" or "if the clock has value 0:00, show FINAL". With rules (`0:00=FINAL`) and overrides they shape the text and XML files as well as the graphics. See [docs/logic.md](docs/logic.md).
+  - **Animations**: thirty-one built-in moves (fly, wipe, fade, slide, pop, drop, flash, pulse, shake, bump) and your own recipes, previewed on the canvas.
+- **Live view**: any board, live, against checks, black or green, full screen or in a projector window on another display, with its browser-source URL one click away.
 
 Also:
 
-- **Projector windows.** Show any board full screen on any display.
-- **Templates.** Basketball, hockey, soccer, football, volleyball, baseball, a general scoreboard and a blank project.
+- **Live data** from Sportzcast over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML / JSON file or URL. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
+- **Templates**: basketball, hockey, soccer, football, volleyball, baseball, a general scoreboard and a blank project.
 - **1.x projects open directly.** They are converted, and the original file is never overwritten.
+- **Recovery.** Unsaved work is kept, and offered back if TeleScore closes unexpectedly.
 
 Clocks keep time in milliseconds from the system clock, so they never drift and a pause keeps the fraction already run. Penalties count down only while their game clock runs.
 
 ## Run it
 
-On Windows, double-click **`TeleScore.bat`**. The first time, it sets up a private Python environment in `.venv` and installs PyQt6; after that it just starts TeleScore. You can also drag a `.tsproj` file onto it to open that project.
+On Windows 10 or 11 (64-bit), double-click **`TeleScore.bat`**. The first time, it downloads the Electron runtime (about 160 MB) from GitHub into a `runtime` folder, checks its SHA-256 and unpacks it; after that it just starts TeleScore. Nothing is installed on the computer and no Python or Node is needed. Drag a `.tsproj` file onto the launcher to open that project.
 
 | Command | What it does |
 |---|---|
 | `TeleScore.bat` | Run TeleScore |
-| `TeleScore.bat debug` | Run with a console window that shows errors |
-| `TeleScore.bat test` | Run every test; screenshots go to `test-screenshots\` |
-| `TeleScore.bat build` | Build `dist\TeleScore\TeleScore.exe` |
-| `TeleScore.bat update` | Reinstall the requirements |
+| `TeleScore.bat test` | Run the test suite, then a check of the app window, PNG output and shortcuts |
+| `TeleScore.bat build` | Make a portable copy in `dist\TeleScore` (`TeleScore.exe`; copy the whole folder) |
+| `TeleScore.bat update` | Download the runtime again |
 
-It needs 64-bit Python 3.10 or newer, the standard build from python.org. PyQt6 has no packages for 32-bit or free-threaded ("3.14t") Python, so the launcher skips those and picks another Python if you have one. If an older `.venv` was made with an unsupported Python, the launcher rebuilds it.
+On other systems, with [Electron](https://www.electronjs.org/) 44 on the path: `electron .` in this folder.
 
-By hand, on any platform, you need the same Python:
+Without a desktop at all (a server, or to use TeleScore from a browser), run only the service with Node 22 or newer:
 
 ```
-python -m pip install -r requirements.txt
-python -m telescore
+node app/service/cli.js --port 5170 --preset Basketball
 ```
 
-`pynput` in `requirements.txt` is optional. It only lets shortcuts work while TeleScore is in the background (Settings menu).
+It prints the studio address with its key. File dialogs, projector windows, PNG pictures and background shortcuts need the desktop app; everything else works in the browser.
 
 ## Outputs at a glance
 
@@ -70,7 +72,7 @@ python -m telescore
 | Remote control | `http://127.0.0.1:8130/api/action?do=add&field=home.score&amount=1` | Stream Deck, Companion |
 | PNG | `<folder>/images/<board>.png` | systems that load pictures |
 
-The default folder is `Documents/TeleScore Output/<project>`. The web server listens only on this computer unless you allow the network in Setup → Outputs. On a network you should set a control token.
+The default folder is `Documents/TeleScore Output/<project>`. The web server listens only on this computer unless you allow the network in Control → Edit → Outputs. On a network you should set a control token.
 
 ### Actions
 
@@ -92,32 +94,33 @@ The default folder is `Documents/TeleScore Output/<project>`. The web server lis
 ## Test
 
 ```
-python -m unittest discover -s tests -v
+npm test            (or: node --test)
 ```
 
-- **Engine, feeds, XML schema, web server and 1.x import.** These need only the standard library; `lxml` adds the XSD check.
-- **`tests/test_overlay_browser.py`.** This renders every template's boards in Chromium, if Playwright is installed.
-- **`tests/test_logic.py` and `tests/test_sportzcast.py`.** Rules, overrides and conditions, against fake MQTT brokers, legacy sockets and LiveXML files.
-- **`tests/test_ui_smoke.py`.** This drives the real desktop app offscreen and saves a screenshot of every tab. Set `TELESCORE_SHOTS` to choose the folder.
+The tests need nothing installed beyond Node 22:
 
-## Build a standalone app
+- **`test/core.test.js`**: time formats, clocks, fields, the engine (actions, undo, penalties), boards, projects and templates.
+- **`test/service.test.js`**: the files on disk, the web server (feeds, boards, remote control and its token), the studio API's guard, design undo, and the layout maths.
+- **`test/logic.test.js`**: rules, overrides and conditions.
+- **`test/legacy.test.js`**: 1.x project import.
+- **`test/sportzcast.test.js`**: fake MQTT brokers, legacy sockets and LiveXML files.
+- **`test/ui.test.js`**: drives the studio window in Chromium, if Playwright is installed (skipped otherwise).
 
-```
-python -m pip install pyinstaller
-pyinstaller TeleScore.spec
-```
-
-The app is written to `dist/TeleScore/`. Build on each platform you want to ship.
+`TeleScore.bat test` runs the same suite inside the downloaded runtime, so Windows needs no Node.
 
 ## Project layout
 
 ```
-telescore/core      engine: fields, clocks, actions + undo, boards, projects, templates, 1.x import  (no Qt)
-telescore/outputs   text/XML/JSON writer, web server, browser-source page                            (stdlib only)
-telescore/ui        PyQt6 desktop app
-tests/              unit, browser and offscreen UI tests
-docs/schema         XSD for fields.xml
+app/core      engine: fields, clocks, actions + undo, rules and conditions, boards, layout,
+              animations, projects, templates, 1.x import        (plain JS, shared with the window)
+app/service   the service: outputs, web servers, live data, files, settings, studio API (Node)
+app/ui        the studio window (HTML, CSS, JS modules) and the shared board renderer
+app/main.js   the desktop shell (Electron): window, dialogs, projector, PNG, shortcuts
+test/         node --test suites
+docs/         logic, Sportzcast, UI principles, OBS plugin plan, XSD for fields.xml
 ```
+
+There are no npm dependencies.
 
 The operator UI follows the Keystone Scorebook design fundamentals:
 - a nine-colour scheme derived by recipe;
@@ -127,12 +130,12 @@ The operator UI follows the Keystone Scorebook design fundamentals:
 - words on buttons;
 - one accent kept for the main action.
 
-It also borrows from Rally: every status is a colour plus a word (RUNNING, LIVE, FAILING). Choose Keystone Dark, Keystone Light or Rally under View → Colours. On-air graphics use their own fixed broadcast palette.
+It also borrows from Rally: every status is a colour plus a word (RUNNING, LIVE, FAILING). Choose Keystone Dark, Keystone Light or Rally under Settings. See [docs/ui-principles.md](docs/ui-principles.md) for the reasoning behind the layout. On-air graphics use their own fixed broadcast palette.
 
 ## Credits
 
 TeleScore was created by the JumpShot team: riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035 and Glenn. Version 2 is a community rebuild.
 
-The Archivo font is © The Archivo Project Authors, under the SIL Open Font License 1.1 (`telescore/assets/fonts/OFL.txt`).
+The Archivo font is © The Archivo Project Authors, under the SIL Open Font License 1.1 (`app/assets/fonts/OFL.txt`).
 
 Licensed under the [GNU Affero General Public License v3](LICENSE).

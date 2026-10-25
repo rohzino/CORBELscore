@@ -1,11 +1,6 @@
-__pycache__/
-*.pyc
-build/
+node_modules/
+runtime/
 dist/
-*.spec.bak
-.venv/
-venv/
 *.tmp
 TeleScore Output/
 test-screenshots/
-.venv/

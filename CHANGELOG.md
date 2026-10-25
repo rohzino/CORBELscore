@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.0.0a3 (unreleased)
+
+### Changed
+- **Rebuilt on Electron and JavaScript.** One runtime for the engine, outputs, live data and window; no Python, PyQt or Node to install. `TeleScore.bat` downloads Electron 44.9.3 from GitHub on first run, checks its SHA-256 and runs it from a `runtime` folder. `TeleScore.bat build` makes a portable `TeleScore.exe` folder.
+- **Two tabs instead of three.**
+  - **Control**, with an Edit / Locked switch. Locked runs the game with the controls full width. Edit adds the Library (Fields, Buttons, Live data, Outputs) on the left and Properties on the right, around a layout you arrange.
+  - **View**: Graphics (the designer, with Logic and Animations beside the canvas) and Live view.
+- **Your own control layout.** Controls sit on a 24-column grid, on pages you name (Game, Teams, …). Drag from the Library, move, resize, use the keyboard; other controls move aside. Templates and older projects get a sensible layout to start from.
+- **Buttons belong to the project**, not to panels. Place them on any page or leave them as shortcuts only.
+- Design undo restores layout and design only; it never rewinds the game.
+- Project format 3. Version 2 and 1.x files are converted and saved under a new name.
+
+### New
+- Projector windows open full screen on the first display that is not the operator's.
+- Background shortcuts switch off while TeleScore has focus, so typing a team name never fires Space.
+- A recovery file keeps unsaved work and is offered back after a crash.
+- `TeleScore.bat test` runs the full suite plus a check of the app window, PNG output and shortcuts.
+- [docs/ui-principles.md](docs/ui-principles.md): the reasoning behind the layout.
+
+### Removed
+- The PyQt6 app, its launcher logic, `requirements.txt`, `pyproject.toml` and `TeleScore.spec`.
+
 ## 2.0.0a2 (unreleased)
 
 ### New

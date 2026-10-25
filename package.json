@@ -1,0 +1,14 @@
+{
+  "name": "telescore",
+  "productName": "TeleScore",
+  "version": "2.0.0-alpha.3",
+  "description": "Open-source scoreboard and live scoring for streams and broadcast.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "app/main.js",
+  "scripts": {
+    "start": "electron .",
+    "serve": "node app/service/cli.js",
+    "test": "node --test"
+  }
+}

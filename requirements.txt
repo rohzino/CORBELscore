@@ -1,4 +1,0 @@
-# TeleScore 2 runtime
-PyQt6>=6.5
-# Optional: shortcuts while TeleScore is in the background
-pynput>=1.7

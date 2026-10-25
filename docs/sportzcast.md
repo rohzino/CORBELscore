@@ -14,7 +14,7 @@ Open the **Live data** tab, pick a source, and click **Connect**. When keys star
 | LiveXML file or URL | Reads the XML that Sportzcast LiveXML writes, or any XML file or web address, whenever it changes. | The file path or URL. |
 | JSON file or URL | The same, for JSON. | The file path or URL. |
 
-TeleScore implements these connections itself with the Python standard library; nothing extra needs installing. Details follow Sportzcast's public docs at docs.sportzcast.net: the MQTT integration, the base contract and TCP sockets (legacy).
+TeleScore implements these connections itself in plain JavaScript on Node's built-in TLS and sockets; nothing extra needs installing. Details follow Sportzcast's public docs at docs.sportzcast.net: the MQTT integration, the base contract and TCP sockets (legacy).
 
 **The token is kept out of the project file.** It is stored in this computer's TeleScore settings, so sharing a `.tsproj` never shares your credentials.
 
@@ -35,7 +35,7 @@ A clock bound to `Clock` shows the bot's clock text exactly. `clock.game.running
 
 ## While live
 
-- A bound field shows **LIVE** on its Operate card. Its buttons still change the field's own value, which shows again if the bot stops sending that key.
+- A bound field shows **LIVE** on its control. Its buttons still change the field's own value, which shows again if the bot stops sending that key.
 - To put up something else, use **Override** on the field. Click the OVERRIDE chip on the card to return to live.
 - The **Live** light in the header turns amber after the silence you set (30 s by default) with no update, and red on errors.
 - Reconnection is automatic, with back-off up to 30 s. MQTT delivery is QoS 0, so an occasional dropped update is normal; the next one corrects it.

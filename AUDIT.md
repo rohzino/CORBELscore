@@ -55,7 +55,7 @@ The audit covers JumpShot-Interactive/TeleScore at commit `7a83b91` (9 February 
 | # | Sev | Finding | 2.0 |
 |---|-----|---------|-----|
 | 29 | Air | Positions were stored as ratios of the live window size, so layouts drifted with resizing and rounding. | A board is a fixed pixel canvas (1920 × 1080 by default) scaled as a whole. |
-| 30 | Ops | State lived inside widgets, so nothing could be exported, previewed or driven remotely without the widget. | A Qt-free engine (fields and actions) sits beneath every view. |
+| 30 | Ops | State lived inside widgets, so nothing could be exported, previewed or driven remotely without the widget. | A UI-free engine (fields and actions, `app/core`) sits beneath every view and is shared by the service and the window. |
 | 31 | Ops | The connection system (`Connection`, handshake packets, A2B and B2A lists) was hard to follow. `emitSignal` raised on unknown types. | Buttons hold plain actions with batches, undo and validation. Errors become operator-readable notices. |
 | 32 | Ops | The board background image was reloaded from disk on every paint. | An image cache keyed on file modification time. |
 | 33 | Ops | The background colour was read back by parsing the widget's style sheet string. | It is a model property. |
@@ -71,5 +71,5 @@ The audit covers JumpShot-Interactive/TeleScore at commit `7a83b91` (9 February 
 | 38 | Ops | `setup.py` crashed on non-Windows systems because `build_exe_options` was undefined. | A PyInstaller spec builds on all three. |
 | 39 | Ops | The README's "build" step just ran the app. | The README covers run, test and build separately. |
 | 40 | Code | Leftover "GameMaster" naming, `print()` debugging, a bare `except:` in the start menu and a dead `extra/OCR.py`. | Removed. |
-| 41 | Code | Tests barely covered behaviour, and one test body was commented out. | 62 engine, feed and server tests, 3 real-browser tests and 9 Qt tests. |
+| 41 | Code | Tests barely covered behaviour, and one test body was commented out. | 91 tests: engine, logic, live data, files, web server, layout, 1.x import, and the studio window in a real browser. |
 | 42 | Ops | `requests` was used without timeouts (update check). | Removed; there is no network dependency. |

@@ -1,146 +1,123 @@
 @echo off
 rem ---------------------------------------------------------------------------
-rem  TeleScore launcher for Windows
+rem  TeleScore launcher for Windows 10 / 11 (64-bit)
 rem
-rem    TeleScore.bat              run TeleScore (sets itself up the first time)
-rem    TeleScore.bat game.tsproj  run and open a project (or drag one onto this file)
-rem    TeleScore.bat debug        run with a console window that shows errors
-rem    TeleScore.bat test         run the test suite
-rem    TeleScore.bat build        build dist\TeleScore\TeleScore.exe
-rem    TeleScore.bat update       reinstall the requirements
+rem    TeleScore.bat               run TeleScore (sets itself up the first time)
+rem    TeleScore.bat game.tsproj   run and open a project (or drag one onto this file)
+rem    TeleScore.bat test          run the test suite and a check of the app window
+rem    TeleScore.bat build         make a portable copy in dist\TeleScore
+rem    TeleScore.bat update        download the runtime again
+rem
+rem  TeleScore runs on Electron. The first run downloads it (about 160 MB) from
+rem  GitHub into the runtime folder and checks its SHA-256 before using it.
+rem  Nothing is installed on the computer; delete the folder to remove it.
 rem ---------------------------------------------------------------------------
 setlocal
 cd /d "%~dp0"
 title TeleScore
 
-rem ---- find a Python that PyQt6 has ready-made packages for -----------------
-rem  PyQt6 ships for 64-bit, standard (not free-threaded) CPython 3.10 or newer.
-rem  Anything else makes pip try to compile Qt from source, which fails.
-set "CHECK=import sys,struct,sysconfig; sys.exit(0 if sys.version_info>=(3,10) and struct.calcsize('P')==8 and not sysconfig.get_config_var('Py_GIL_DISABLED') else 1)"
-set "PYTHON_MANAGER_AUTOMATIC_INSTALL=false"
-set "PY="
-call :try py -3
-for %%V in (3.13 3.12 3.14 3.11 3.10) do if not defined PY call :try py -%%V
-for %%V in (3.13 3.12 3.14 3.11 3.10) do if not defined PY call :try py -%%V-64
-if not defined PY call :try python
-if not defined PY goto :fail_python
+set "EV=44.9.3"
+set "ESHA=41a1ffa0541cb0f2c9b9fe920dd2cef1793ad0ea2ada1a9582958880f4d1b23c"
+set "EZIP=electron-v%EV%-win32-x64.zip"
+set "EURL=https://github.com/electron/electron/releases/download/v%EV%/%EZIP%"
+set "RT=%~dp0runtime"
 
-rem ---- private environment in .venv -----------------------------------------
-if exist ".venv\Scripts\python.exe" (
-    ".venv\Scripts\python.exe" -c "%CHECK%" >nul 2>&1
-    if errorlevel 1 (
-        echo The existing .venv uses a Python that PyQt6 does not support. Rebuilding it...
-        rmdir /s /q ".venv"
-    )
-)
-if not exist ".venv\Scripts\python.exe" (
-    echo Setting up TeleScore for the first time. This takes a minute...
-    %PY% -m venv .venv
-    if errorlevel 1 goto :fail_venv
-)
-set "VPY=.venv\Scripts\python.exe"
-set "VPYW=.venv\Scripts\pythonw.exe"
-
-rem ---- install requirements when requirements.txt has changed ----------------
-if /i "%~1"=="update" del ".venv\requirements.stamp" >nul 2>&1
-fc /b "requirements.txt" ".venv\requirements.stamp" >nul 2>&1
-if errorlevel 1 (
-    echo Installing PyQt6 and the other requirements...
-    "%VPY%" -m pip install --disable-pip-version-check -q --upgrade pip
-    "%VPY%" -m pip install --disable-pip-version-check --only-binary=PyQt6,PyQt6-Qt6,PyQt6-sip -r requirements.txt
-    if errorlevel 1 goto :fail_pip
-    copy /y "requirements.txt" ".venv\requirements.stamp" >nul
-)
-if /i "%~1"=="update" (
-    echo Requirements are up to date.
-    pause
-    exit /b 0
+if /i "%~1"=="update" if exist "%RT%" rmdir /s /q "%RT%"
+if not exist "%RT%\electron.exe" call :setup || goto :fail
+if not exist "%RT%\version" goto :fail
+set /p HAVE=<"%RT%\version"
+if not "%HAVE%"=="%EV%" (
+    echo The runtime is %HAVE%, TeleScore wants %EV%. Downloading the right one...
+    rmdir /s /q "%RT%"
+    call :setup || goto :fail
 )
 
-if /i "%~1"=="test" goto :test
-if /i "%~1"=="build" goto :build
-if /i "%~1"=="debug" goto :debug
+if /i "%~1"=="test"   goto :test
+if /i "%~1"=="build"  goto :build
+if /i "%~1"=="update" shift
 
-rem ---- run (no console window); any arguments are project files to open ------
-start "" "%VPYW%" -m telescore %*
+start "" "%RT%\electron.exe" . %1 %2
 exit /b 0
 
-:debug
-echo Running TeleScore with this console open. Errors appear here.
-"%VPY%" -m telescore
-echo.
-echo TeleScore closed with code %errorlevel%.
-pause
-exit /b 0
-
-:test
-echo Installing test tools...
-"%VPY%" -m pip install --disable-pip-version-check -q lxml
-set "TELESCORE_SHOTS=%~dp0test-screenshots"
-"%VPY%" -m unittest discover -s tests -v
-rem  "if errorlevel 1" misses negative codes, which is how a crash on exit shows up.
-set "RC=%errorlevel%"
-if not "%RC%"=="0" (
-    echo.
-    echo  Some tests failed, or Python stopped abnormally ^(exit code %RC%^).
-    echo  Copy the messages above to Claude.
+rem ---- first-run setup -------------------------------------------------------
+:setup
+echo Setting up TeleScore for the first time.
+echo Downloading Electron %EV% from GitHub (about 160 MB)...
+if not exist "%RT%" mkdir "%RT%"
+set "ZIP=%TEMP%\%EZIP%"
+if exist "%ZIP%" del "%ZIP%"
+where curl.exe >nul 2>&1
+if not errorlevel 1 (
+    curl.exe -L --fail --progress-bar -o "%ZIP%" "%EURL%"
 ) else (
-    echo.
-    echo  All tests passed. Screenshots of every tab are in:
-    echo  %TELESCORE_SHOTS%
+    powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%EURL%' -OutFile '%ZIP%'"
 )
-pause
-exit /b 0
-
-:build
-echo Installing PyInstaller...
-"%VPY%" -m pip install --disable-pip-version-check -q pyinstaller
-if errorlevel 1 goto :fail_pip
-"%VPY%" -m PyInstaller --noconfirm TeleScore.spec
-if errorlevel 1 (
+if not exist "%ZIP%" (
     echo.
-    echo  The build failed. Copy the messages above to Claude.
-    pause
+    echo Could not download %EURL%
+    echo Check the internet connection, or download that file yourself, put it in
+    echo %TEMP% and run TeleScore.bat again.
     exit /b 1
 )
+echo Checking the download...
+set "GOT="
+for /f "skip=1 delims=" %%H in ('certutil -hashfile "%ZIP%" SHA256') do if not defined GOT set "GOT=%%H"
+set "GOT=%GOT: =%"
+if /i not "%GOT%"=="%ESHA%" (
+    echo.
+    echo The download does not match the expected SHA-256 and was not used.
+    echo   expected %ESHA%
+    echo   got      %GOT%
+    del "%ZIP%"
+    exit /b 1
+)
+echo Unpacking...
+tar -xf "%ZIP%" -C "%RT%" 2>nul
+if not exist "%RT%\electron.exe" powershell -NoProfile -Command "Expand-Archive -Force -LiteralPath '%ZIP%' -DestinationPath '%RT%'"
+del "%ZIP%"
+if not exist "%RT%\electron.exe" (
+    echo Could not unpack the runtime.
+    exit /b 1
+)
+echo Ready.
+exit /b 0
+
+rem ---- tests -----------------------------------------------------------------
+:test
+echo Running the test suite...
+set "ELECTRON_RUN_AS_NODE=1"
+"%RT%\electron.exe" --test
+set "UNIT=%errorlevel%"
+set "ELECTRON_RUN_AS_NODE="
 echo.
-echo  Built dist\TeleScore\TeleScore.exe
-echo  Copy the whole dist\TeleScore folder to use it on another PC.
-explorer "dist\TeleScore"
+echo Checking the app window, pictures and shortcuts...
+set "TELESCORE_SMOKE=%TEMP%\telescore-check"
+if exist "%TELESCORE_SMOKE%" rmdir /s /q "%TELESCORE_SMOKE%"
+"%RT%\electron.exe" .
+set "SMOKE=%errorlevel%"
+if exist "%TELESCORE_SMOKE%\report.txt" type "%TELESCORE_SMOKE%\report.txt"
+echo Pictures from the check are in %TELESCORE_SMOKE%
+echo.
+if "%UNIT%%SMOKE%"=="00" (echo All checks passed.) else (echo Some checks FAILED - see above.)
 pause
 exit /b 0
 
-:fail_venv
-echo.
-echo  Could not create the .venv folder. Check that this folder is not read-only
-echo  (for example inside a zip file: unzip it first).
+rem ---- portable build ----------------------------------------------------------
+:build
+echo Making a portable copy in dist\TeleScore ...
+if exist "dist\TeleScore" rmdir /s /q "dist\TeleScore"
+robocopy "%RT%" "dist\TeleScore" /E /NFL /NDL /NJH /NJS /NP >nul
+ren "dist\TeleScore\electron.exe" TeleScore.exe
+if exist "dist\TeleScore\resources\default_app.asar" del "dist\TeleScore\resources\default_app.asar"
+robocopy "app" "dist\TeleScore\resources\app\app" /E /NFL /NDL /NJH /NJS /NP >nul
+copy /y package.json "dist\TeleScore\resources\app\" >nul
+copy /y LICENSE "dist\TeleScore\resources\app\" >nul 2>&1
+echo Done: dist\TeleScore\TeleScore.exe  (copy the whole TeleScore folder to move it)
 pause
-exit /b 1
-
-:fail_pip
-echo.
-echo  Installing requirements failed. This Python is:
-"%VPY%" -c "import platform,struct; print('   ', platform.python_implementation(), platform.python_version(), struct.calcsize('P')*8, 'bit,', platform.machine())"
-echo  Check the internet connection and run "TeleScore.bat update" to try again.
-echo  If it fails again, copy these messages to Claude.
-pause
-exit /b 1
-
-:fail_python
-echo.
-echo  TeleScore needs 64-bit Python 3.10 or newer (the standard build, not the
-echo  free-threaded "t" build). PyQt6 has no packages for anything else.
-echo.
-echo  Pythons found on this PC:
-py --list-paths 2>nul || python -c "import sys,struct; print('   ', sys.version, struct.calcsize('P')*8, 'bit')" 2>nul || echo     none
-echo.
-echo  Install "Windows installer (64-bit)" from https://www.python.org/downloads/
-echo  and tick "Add python.exe to PATH" on the first screen, then run this again.
-pause
-exit /b 1
-
-rem ---- try one Python command; keep it when it passes the check --------------
-:try
-%* -c "%CHECK%" >nul 2>&1
-if not errorlevel 1 set "PY=%*"
 exit /b 0
+
+:fail
+echo.
+echo TeleScore could not start. See the message above.
+pause
+exit /b 1

@@ -8,13 +8,13 @@ Every field's published value is worked out in this order. The first step that a
 
 | Step | Where you set it | Example |
 |---|---|---|
-| 1. **Override** | Setup → Fields → Override, or click the OVERRIDE chip on an Operate card to turn it off | `HALFTIME` |
-| 2. **Live key** | Setup → Fields → Live key, or Setup → Live data → bind | the bot's `HomeScore` |
-| 3. **Rules** | Setup → Fields → Rules | `0:00=FINAL\|2:00=Two-minute warning` |
-| 4. **Conditional rules** | Design → Logic, a condition whose action is "Conditional rule" | `1=Joe\|2=John` while `half` is `T` |
-| 5. The field's own value | Operate, buttons, remote control | `3` |
+| 1. **Override** | Control → Edit → select the field → Override, or click the OVERRIDE chip on its control to turn it off | `HALFTIME` |
+| 2. **Live key** | Control → Edit → select the field → Live key, or Control → Edit → Live data → bind | the bot's `HomeScore` |
+| 3. **Rules** | Control → Edit → select the field → Rules | `0:00=FINAL\|2:00=Two-minute warning` |
+| 4. **Conditional rules** | View → Graphics → Logic, a condition whose action is "Conditional rule" | `1=Joe\|2=John` while `half` is `T` |
+| 5. The field's own value | Controls, buttons, remote control | `3` |
 
-All outputs get the result: text files, the XML profiles, `state.json`, browser sources, projector windows and PNGs. The **Now** column in Setup → Fields shows the published result, and `state.json` carries both.
+All outputs get the result: text files, the XML profiles, `state.json`, browser sources, projector windows and PNGs. The field list in Control → Edit → Fields shows the published result next to each key, and `state.json` carries both.
 
 A rule beats a conditional rule, as it does in SportzSuite. An override beats everything; SportzSuite's docs don't say how its overrides rank, so this ordering is TeleScore's choice.
 
@@ -35,7 +35,7 @@ TeleScore adds a few things SportzSuite doesn't document:
 | `1={value}st` | `{value}` puts the original value back in |
 | `a\=b=c\|d` | `\=` and `\|` are a literal `=` and `\|` |
 
-Board elements can have their own rules too (Design → Boards → inspector → Rules and motion). Element rules change only that graphic, never the files.
+Board elements can have their own rules too (View → Graphics → select the element → Rules and motion). Element rules change only that graphic, never the files.
 
 ## Conditions
 

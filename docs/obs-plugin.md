@@ -17,7 +17,7 @@ Nothing in TeleScore needs to change for a first version. The local web server i
 | Push updates | `GET /events` (Server-Sent Events): `full` on connect, then `diff` with changed keys, and `fx` for effects |
 | Field list for a picker | `GET /api/fields` |
 | Run an action | `GET /api/action?do=…&field=…` or `POST /api/action` with JSON |
-| Board as a picture | `GET /board/<id>` (HTML); PNG output is also written to `images/<board>.png` |
+| Board | `GET /board/<id>` (HTML), `GET /board/<id>.json` (elements and animations); PNG output is also written to `images/<board>.png` |
 | Authentication | `?token=` or the `X-TeleScore-Token` header, when a control token is set |
 
 ## Stage 1: OBS Python script (about a day)
@@ -32,15 +32,14 @@ This is a script loaded through Tools → Scripts, with no compiling.
 ## Stage 2: native C++ plugin (`obs-telescore`)
 
 - **Source "TeleScore Field".** Renders one field's value with OBS's text renderer (FreeType), with font and colour settings. Its value comes from an SSE client on a worker thread, guarded by a mutex.
-- **Source "TeleScore Board".** Renders a board natively: the same element model, rules and animations as `core.animation`. The board JSON comes from `/board/<id>.json`, and the animation recipes would need a new `/animations.json` endpoint. It draws with `gs_*` calls.
+- **Source "TeleScore Board".** Renders a board natively: the same element model, rules and animations as `app/core/animation.js`. The board and the project's animation recipes come together from `/board/<id>.json`. It draws with `gs_*` calls.
 - **Dock.** Connection status, the LIVE / SILENT / FAILING state from a new `/api/status` endpoint, and the project's buttons.
 - **Hotkeys.** One OBS hotkey per TeleScore button, saved per scene collection.
 - **Build.** CMake against `obs-studio` libobs; CI for Windows (MSVC), macOS (universal) and Linux.
 
 Endpoints to add when stage 1 starts:
-- `/api/buttons` (panels and buttons, with ids and actions);
-- `/api/status` (live source state, output lights);
-- `/animations.json`.
+- `/api/buttons` (buttons, with ids, labels, shortcuts and actions);
+- `/api/status` (live source state, output lights).
 
 ## Why not now
 
