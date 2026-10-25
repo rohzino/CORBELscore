@@ -138,14 +138,15 @@ function liveData(ctx, redraw) {
   if (!keys.length) keysBox.append(h("p.hint", st.state === "off" ? "Connect a source to see the keys it sends." : "No keys yet. They appear when data arrives."));
   for (const k of keys.slice(0, 400)) {
     const f = bound[k];
+    const bind = select([["", "—"], ...p.fields.map((x) => [x.key, x.label])], f?.key ?? "", async (fk) => {
+      const ops = [];
+      if (f) ops.push({ op: "field.update", key: f.key, changes: { source: "" } });
+      if (fk) ops.push({ op: "field.update", key: fk, changes: { source: k } });
+      await attempt(() => edit(ops, `Bind ${k}`));
+    }, { k: `bind-${k}`, title: "The field that follows this key" });
+    Object.assign(bind.style, { flex: "0 0 46%", width: "46%" });   // leave room for the key's name
     keysBox.append(h("div.item", { title: `${k} = ${liveKeys[k]}` },
-      h("div.grow", h("div.name.mono", k), h("div.sub", String(liveKeys[k] ?? ""))),
-      select([["", "—"], ...p.fields.map((x) => [x.key, x.label])], f?.key ?? "", async (fk) => {
-        const ops = [];
-        if (f) ops.push({ op: "field.update", key: f.key, changes: { source: "" } });
-        if (fk) ops.push({ op: "field.update", key: fk, changes: { source: k } });
-        await attempt(() => edit(ops, `Bind ${k}`));
-      }, { k: `bind-${k}`, title: "The field that follows this key" })));
+      h("div.grow", h("div.name.mono", k), h("div.sub", String(liveKeys[k] ?? ""))), bind));
   }
   return [
     h("div.section-title", "Connection"),
@@ -154,8 +155,8 @@ function liveData(ctx, redraw) {
     h("div.col", { style: { margin: "6px 0", gap: "6px" }, "data-ambient": "live-status" },
       h("div.row", h(`span.dot${st.state === "live" ? ".dot-ok" : ["connecting", "stale"].includes(st.state) ? ".dot-busy" : st.state === "error" ? ".dot-error" : ""}`),
         chip(word[0], word[1]), h("span.spacer"),
-        st.connected ? [button("Reconnect", () => attempt(() => call("/api/connect")), { role: st.changed ? "accent" : "", title: "Connect again with the settings above" }),
-          button("Disconnect", () => attempt(() => call("/api/disconnect")), { title: "Stop live data; bound fields show their own values again" })]
+        st.connected ? [button("Reconnect", () => attempt(() => call("/api/connect")), { role: st.changed ? "accent" : "", title: "Connect again with the settings above", cls: "btn-sm" }),
+          button("Disconnect", () => attempt(() => call("/api/disconnect")), { title: "Stop live data; bound fields show their own values again", cls: "btn-sm" })]
           : button("Connect", () => attempt(() => call("/api/connect")), { role: "accent", disabled: !kind, k: "live-connect" })),
       h("p.hint", { style: { margin: 0, color: st.changed ? "var(--user-text, var(--user))" : "" } },
         st.connected ? (st.changed ? "Settings changed. Reconnect to use them." : st.detail || "") : kind ? "Not connected. Set it up, then press Connect." : "")),
@@ -168,6 +169,10 @@ function liveData(ctx, redraw) {
       const ok = await confirmDialog("Suggest bindings", pairs.map(([fk, sk]) => `${sk} → ${fk}`).join("\n"), "Bind them");
       if (ok) attempt(() => edit(pairs.map(([fk, sk]) => ({ op: "field.update", key: fk, changes: { source: sk } })), "Suggested bindings"));
     }, { role: "accent" }) : null,
+    keys.length ? button("Copy all keys", () => {
+      const text = keys.map((k) => `${k} = ${liveKeys[k]}`).join("\n");
+      navigator.clipboard.writeText(text).then(() => toast(`Copied ${keys.length} keys and their values.`), () => toast("Could not copy.", true));
+    }, { title: "Every key and its current value, as text, e.g. to paste into a support request" }) : null,
     keysBox,
   ];
 }

@@ -25,11 +25,14 @@ Every key that arrives is listed with its current value. Nested JSON and XML are
 **Suggest bindings** knows these names:
 - from Sportzcast's base contract: `HomeScore`, `GuestScore`, `HomeTeamName`, `GuestTeamName`, `Clock` and `ClockStatus`;
 - common per-sport names: `Period`, `ShotClock`, `HomeFouls` and others;
+- football names: `Quarter`, `Down`, `ToGo`, `YardsToGo` and `Distance`;
 - LiveXML names: `Hscore`, `Vscore`, `Htimeouts`, `Vtimeouts` and `down`.
+
+**Copy all keys** puts every key and its current value on the clipboard, which is the quickest way to see exactly what a bot sends.
 
 Anything else can be matched by name, bound by hand, or turned into a new field with **Make a field**.
 
-When a period number is bound to a choice field (1st, 2nd …), the suggestion also adds a rule such as `1=1st|2=2nd|…`, so the outputs show your period names.
+A choice field (quarter, half, down) follows live data whether the scoreboard sends a number or a name: `1` shows as `1st`, `5` as the fifth option (`OT`), and `OT`, `ot` or `Q2` match by name or by the number inside. Its buttons light up the live option. Text that matches no option is shown as it came. A counter shown as an ordinal (`2nd`) or padded (`07`) keeps that look when live.
 
 A clock bound to `Clock` shows the bot's clock text exactly. `clock.game.running` follows `ClockStatus` (`R` means running).
 

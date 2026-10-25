@@ -11,6 +11,8 @@
 - **Buttons are now Shortcuts** and belong to the project, not to panels. Place one on any page as a button, give it a key, or both.
 - A blank project opens straight into Edit mode with the Library showing.
 - **Live data connects only when you press Connect**, never on its own when a project opens or a setting changes. While connected, a changed setting shows "Reconnect to use them"; Disconnect stops it.
+- **Choice fields follow live data.** Quarter, half and down now update from a scoreboard that sends numbers (`1` → `1st`, `5` → `OT`) as well as names, and their buttons light up the live option. Before, a number picked the wrong option or showed as a bare number. Ordinal and padded counters keep their look when live.
+- Suggest bindings knows more football names (`YardsToGo`, `YardsToGain`, `DownNumber`, `Qtr`). **Copy all keys** copies what a source sends.
 - Status updates and arriving data no longer close a drop-down or interrupt typing in a box. Panels refresh once you leave the box.
 - Design undo restores layout and design only; it never rewinds the game.
 - Project format 3. Version 2 and 1.x files are converted and saved under a new name.

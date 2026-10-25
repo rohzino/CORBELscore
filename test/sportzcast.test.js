@@ -210,3 +210,33 @@ test("end to end: bot data into the engine", async (t) => {
   const v = e.snapshot().values;
   assert.deepEqual([v["away.score"], v["clock.game"], v.period, v["clock.game.running"]], ["30", "4:07", "2nd", "1"]);
 });
+
+test("live data drives choice fields by number or name, and counters keep their format", () => {
+  const p = PRESETS.Football();
+  const e = p.engine;
+  e.field("period").source = "Quarter";
+  e.field("down").source = "Down";
+  e.field("distance").source = "ToGo";
+  const show = (data) => { e.feed(data); e.tick(); const s = e.snapshot(); return [s.values.period, s.values["period.index"], s.values.down, s.values["down.index"], s.values.distance]; };
+  // The usual scoreboard numbers, counting from 1.
+  assert.deepEqual(show({ Quarter: "1", Down: "3", ToGo: "7" }), ["1st", "1", "3rd", "3", "7"]);
+  assert.deepEqual(show({ Quarter: "5", Down: "4", ToGo: "Goal" }), ["OT", "5", "4th", "4", "Goal"]);
+  // Names, in any case, and numbers inside names.
+  assert.deepEqual(show({ Quarter: "ot", Down: "1ST", ToGo: "10" }), ["OT", "5", "1st", "1", "10"]);
+  assert.deepEqual(show({ Quarter: "Q2", Down: "2" }), ["2nd", "2", "2nd", "2", "10"]);
+  // Something that matches no option is shown as it came, never dropped.
+  assert.deepEqual(show({ Quarter: "9", Down: "" }).slice(0, 1), ["9"]);
+  // The field's own value is untouched, so it is still there when live data stops.
+  assert.equal(e.field("period").display(), "1st");
+  // A counter shown as an ordinal stays an ordinal when live.
+  const g = PRESETS["General scoreboard"]().engine;
+  g.field("period").source = "Period";
+  g.feed({ Period: "2" });
+  g.tick();
+  assert.equal(g.snapshot().values.period, "2nd");
+});
+
+test("suggest knows football names", () => {
+  const m = suggest(["Quarter", "Down", "YardsToGo"], ["period", "down", "distance"]);
+  assert.deepEqual(m, { period: "Quarter", down: "Down", distance: "YardsToGo" });
+});

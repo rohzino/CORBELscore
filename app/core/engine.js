@@ -69,6 +69,29 @@ function rawFromText(f, text) {
   return text;
 }
 
+// Live data names a choice by its text ("2nd", "OT") or, as scoreboards do, by
+// number counting from 1 ("2" = the second option). Returns the option's index,
+// or -1 when the text matches nothing (it is then shown as it came).
+export function liveChoiceIndex(options, text) {
+  const s = String(text ?? "").trim();
+  if (!s) return -1;
+  const lower = s.toLowerCase();
+  let i = options.findIndex((o) => o.toLowerCase() === lower);
+  if (i >= 0) return i;
+  const n = /^\d+$/.test(s) ? parseInt(s, 10) : NaN;
+  if (Number.isNaN(n)) {
+    // "1ST" vs "1st", "Q2" vs "2nd": compare the numbers inside.
+    const m = /(\d+)/.exec(s);
+    if (!m) return -1;
+    i = options.findIndex((o) => (/(\d+)/.exec(o) || [])[1] === m[1]);
+    return i;
+  }
+  // A number: the option carrying that number ("1" → "1st", "2" → "2H"), else the nth option ("5" → "OT").
+  i = options.findIndex((o) => (/^\D*(\d+)/.exec(o) || [])[1] === String(n));
+  if (i >= 0) return i;
+  return n >= 1 && n <= options.length ? n - 1 : -1;
+}
+
 export class Engine {
   constructor(fields = []) {
     this.fields = new Map();
@@ -397,11 +420,23 @@ export class Engine {
     for (const [k, f] of this.fields) {
       const src = this._sourceText(f);
       let b;
-      if (src !== null) { live.add(k); b = src; raw[k] = rawFromText(f, src); }
-      else { b = f.display(t); raw[k] = f.raw(t); }
+      let extra = f.extra(t);
+      if (src !== null) {
+        live.add(k);
+        b = src;
+        raw[k] = rawFromText(f, src);
+        if (f instanceof ChoiceField) {
+          const i = liveChoiceIndex(f.options, src);
+          if (i >= 0) { b = f.options[i]; raw[k] = b; extra = { ...extra, index: String(i + 1) }; }
+        } else if (f instanceof CounterField && typeof raw[k] === "number") {
+          // Shown the way the field shows its own numbers: "2" → "2nd" for an ordinal period, "07" when padded.
+          const view = Object.create(f);
+          view.value = raw[k];
+          b = view.display(t);
+        }
+      } else { b = f.display(t); raw[k] = f.raw(t); }
       base[k] = b;
       values[k] = this._pipeline(f, b);
-      let extra = f.extra(t);
       if (src !== null && f instanceof ClockField) {
         const status = this.sources[f.source_status || "ClockStatus"];
         if (status !== undefined) extra = { ...extra, running: status.trim().toUpperCase() === "R" ? "1" : "0" };
