@@ -1,0 +1,8 @@
+node_modules/
+runtime/
+dist/
+*.tmp
+TeleScore Output/
+test-screenshots/
+scripts/exe/payload.zip
+scripts/exe/*.syso
