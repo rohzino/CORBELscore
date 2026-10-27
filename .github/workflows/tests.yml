@@ -23,3 +23,11 @@ jobs:
       # tests (test/ui.test.js) skip themselves where Playwright is not installed.
       - name: Test
         run: node --test
+      # On a failure, put the failing tests where the run's summary shows them.
+      - name: Report failures
+        if: failure()
+        shell: bash
+        run: |
+          node --test --test-reporter=spec 2>&1 | grep -E -A12 "^\s*✖" | head -120 > failures.txt || true
+          echo "::error title=Failing tests::$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' failures.txt)"
+          { echo '```'; cat failures.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
