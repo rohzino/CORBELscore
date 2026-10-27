@@ -48,8 +48,9 @@ test("files: text, XML and JSON are written and follow the score", async () => {
   await until(() => fs.readFileSync(txt, "utf8") === "2");
   const nested = parseXml(fs.readFileSync(path.join(dir, "out", "corbelscore.xml"), "utf8"));
   assert.ok(nested, "corbelscore.xml parses");
-  const state = JSON.parse(fs.readFileSync(path.join(dir, "out", "state.json"), "utf8"));
-  assert.equal(String(state.values["away.score"]), "2");
+  // XML and JSON are rewritten at most 20 times a second, so they may land a moment after the text file.
+  const json = path.join(dir, "out", "state.json");
+  await until(() => String(JSON.parse(fs.readFileSync(json, "utf8")).values["away.score"]) === "2");
 });
 
 test("files: names are safe on Windows", () => {
