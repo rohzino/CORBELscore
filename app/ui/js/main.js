@@ -3,6 +3,7 @@
 
 import { act, call, connect, edit, on, store } from "./api.js";
 import { applyScheme, DEFAULT_SCHEME, SCHEMES, schemeName } from "./colors.js";
+import "./fonts.js";   // the computer's fonts start loading now, for the designer's font list
 import { button, chip, clear, h, kbd } from "./dom.js";
 import { fromEvent, isGlobalSafe, normalise, typing } from "./keys.js";
 import { attempt, closeMenu, confirmDialog, dialog, editKeys, menu, remember, toast, ui } from "./ui.js";

@@ -18,21 +18,12 @@ import { defaultSize, findSpot } from "/core/layout.js";
 import { newId } from "/core/ids.js";
 import { attempt, ask, check, claimKeys, colorInput, confirmDialog, dialog, menu, numberInput, percentInput, remember, select, textInput, toast, ui } from "./ui.js";
 import { mountControlPane } from "./control.js";
+import { loadLocalFonts, localFonts as computerFonts, onLocalFonts } from "./fonts.js";
 
 const SNAP_PX = 7;          // screen pixels within which an edge snaps
 const MOVE_PX = 3;          // a drag starts after this many screen pixels, so a click never nudges
 const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 const KIND_NAME = { text: "Text", box: "Box", image: "Picture", board: "Board" };
-
-// Fonts installed on this computer (Chromium's Local Font Access), loaded once on request.
-let localFonts = null;
-async function loadLocalFonts() {
-  if (localFonts) return localFonts;
-  if (!window.queryLocalFonts) throw new Error("This window cannot list the computer's fonts. Type the font's name instead.");
-  const list = await window.queryLocalFonts();
-  localFonts = [...new Set(list.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
-  return localFonts;
-}
 
 // A picture's own size in pixels, or null if it cannot be read.
 function naturalSize(src) {
@@ -863,6 +854,7 @@ export function mountDesigner(root) {
     const bundled = BUNDLED_FONTS.map((f) => f.family);
     const opt = (f) => h("option", { value: f, selected: f === value, style: { fontFamily: `"${f}"` } }, f);
     const groups = [h("optgroup", { label: "Built in" }, BUNDLED_FONTS.map((f) => opt(f.family)))];
+    const localFonts = computerFonts();
     if (localFonts) groups.push(h("optgroup", { label: "On this computer" }, localFonts.filter((f) => !bundled.includes(f)).map(opt)));
     else if (value && !bundled.includes(value)) groups.push(h("optgroup", { label: "In use" }, opt(value)));
     const more = [];
@@ -872,7 +864,7 @@ export function mountDesigner(root) {
     sel.addEventListener("change", async () => {
       const v = sel.value;
       if (v === "__local") {
-        try { await loadLocalFonts(); toast(`${localFonts.length} fonts on this computer are in the list now.`); } catch (err) { toast(err.message, true); }
+        try { const l = await loadLocalFonts(); toast(`${l.length} fonts on this computer are in the list now.`); } catch (err) { toast(err.message, true); }
         renderRight();
         return;
       }
@@ -896,6 +888,7 @@ export function mountDesigner(root) {
     on("project", (p) => { if (!p || drag) return; load(); renderAll(); }),
     on("snap", () => { if (!drag) applyValues(); }),
     on("status", () => renderToolbar()),
+    onLocalFonts(() => { if (ui.gsel.length && selected()[0]?.kind === "text") renderRight(); }),
   ];
   return () => { offs.forEach((f) => f()); releaseKeys(); releasePaste(); paneOff?.(); view.destroy(); previewView?.destroy(); previewView = null; };
 }

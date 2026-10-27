@@ -4,6 +4,10 @@
 
 TeleScore is now **CORBELscore**, built on TeleScore's engine, outputs and project format.
 
+### Sharing
+- **`CORBELscore.exe`**: the whole program in one file. The first run unpacks it to `%LOCALAPPDATA%\CORBELscore` behind a small "Setting up" window; later runs start at once, and a newer file replaces the old copy. The file and the program inside it carry CORBELscore's icon and version. Built by `scripts/exe/build.py` with Go and Python only.
+- The computer's fonts are loaded as CORBELscore starts, so the designer's font list is complete straight away.
+
 ### Brand
 - New name, wordmark (**CORBEL**score at 91% opacity), tagline lockup and app icon (a corbel: three courses stepping out), as outline SVGs in `app/assets/brand/`, rebuilt by `scripts/brand/build.py`.
 - New design system ([docs/design-system.md](docs/design-system.md)): Basalt, Limestone (Pantone P 179-1 U), Patina, Brass and Terracotta. Two schemes, Basalt (dark) and Limestone (light), replace the old ones; a saved old scheme falls back to Basalt.

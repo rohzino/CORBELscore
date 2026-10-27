@@ -55,6 +55,18 @@ On Windows 10 or 11 (64-bit), double-click **`CORBELscore.bat`**. The first time
 | `CORBELscore.bat build` | Make a portable copy in `dist\CORBELscore` (`CORBELscore.exe`; copy the whole folder) |
 | `CORBELscore.bat update` | Download the runtime again |
 
+### One file to share
+
+`CORBELscore.exe` is the whole program in one file (about 160 MB). Double-click it: the first time it unpacks itself to `%LOCALAPPDATA%\CORBELscore` (a few seconds, with a small "Setting up" window); after that it starts straight away. No installer, no administrator rights; a newer `CORBELscore.exe` replaces the old copy by itself. It is not code-signed, so Windows SmartScreen may say it "protected your PC": choose **More info → Run anyway**.
+
+To build it (on Windows, macOS or Linux) you need Go and Python 3:
+
+```
+python3 scripts/exe/build.py --electron electron-v44.9.3-win32-x64.zip
+```
+
+It checks the runtime's SHA-256, gives `CORBELscore.exe` and the program inside it CORBELscore's icon and version, and writes `dist/CORBELscore.exe`. No other tools are needed.
+
 On other systems, with [Electron](https://www.electronjs.org/) 44 on the path: `electron .` in this folder.
 
 Without a desktop at all (a server, or to use CORBELscore from a browser), run only the service with Node 22 or newer:

@@ -180,12 +180,15 @@ async function createWindow() {
   });
   win.on("closed", () => { win = null; app.quit(); });
   await win.loadURL(service.studioUrl());
+  // The computer's fonts, for the designer's font list, as the program starts.
+  win.webContents.executeJavaScript("window.__corbelLoadFonts ? window.__corbelLoadFonts() : 0", true).catch(() => {});
 }
 
 app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  if (process.platform === "win32") app.setAppUserModelId("CORBELscore");   // one taskbar group, with CORBELscore's icon
   // The window may list the computer's fonts (for the font picker), copy to the
   // clipboard and go full screen; nothing else (camera, location…) is granted.
   const ALLOWED = new Set(["local-fonts", "clipboard-sanitized-write", "clipboard-read", "fullscreen"]);
@@ -238,8 +241,9 @@ async function smokeTest(dir) {
     ok("displays listed", displays().length >= 1, JSON.stringify(displays()));
     const font = await win.webContents.executeJavaScript('document.fonts.check(\'16px "Red Hat Text"\') && document.fonts.check(\'700 16px "Red Hat Display"\')');
     ok("Red Hat fonts loaded", font === true);
-    const fonts = await win.webContents.executeJavaScript("window.queryLocalFonts ? window.queryLocalFonts().then((l) => l.length).catch((e) => 'refused: ' + e.message) : 'no API'", true);
-    ok("computer's fonts can be listed", typeof fonts === "number", String(fonts));
+    // Loaded on its own as the window opened, no click needed.
+    const fonts = await win.webContents.executeJavaScript("import('/ui/js/fonts.js').then((m) => m.localFonts()?.length ?? 'not loaded')");
+    ok("computer's fonts loaded at start", typeof fonts === "number" && fonts > 0, String(fonts));
   } catch (err) { ok("smoke test ran", false, err.stack); }
   fs.writeFileSync(path.join(dir, "report.txt"), report.join("\n") + "\n");
   console.log(report.join("\n"));
