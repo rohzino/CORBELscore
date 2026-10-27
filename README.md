@@ -4,7 +4,11 @@
 
 Live broadcast scoring solution. Keep score in one window. The scores go out as text files, XML (generic, vMix, Ross XPression, Chyron), JSON, browser sources for OBS and vMix, PNG pictures and a full-screen projector window.
 
-CORBELscore is built on [TeleScore](https://github.com/JumpShot-Interactive/TeleScore), the open-source scoring utility by the JumpShot team. TeleScore's engine, outputs and project format are its building blocks; this is the next version, rebuilt from the ground up and renamed (a corbel is the stone bracket that carries a load). It is licensed under the AGPL-3.0, like TeleScore. See [AUDIT.md](AUDIT.md) for what was wrong in TeleScore 1.0.3 and how it was fixed, and [CHANGELOG.md](CHANGELOG.md) for what is new.
+![The Control tab during a basketball game](docs/img/control.png)
+
+## Download
+
+Get **CORBELscore.exe** from [Releases](https://github.com/rohzino/CORBELscore/releases) (Windows 10 or 11, 64-bit). It is the whole program in one file: double-click it, no installer. The first run takes a few seconds to set up; after that it opens straight away. It is not code-signed yet, so Windows SmartScreen may say it "protected your PC": choose **More info → Run anyway**.
 
 ## What it does
 
@@ -19,6 +23,8 @@ CORBELscore has two tabs.
   - Right, **Properties** of whatever is selected: the control's size, the field's rules, live key and override, a shortcut's steps and key.
 
   Controls do not fire while you edit, so nothing goes to air by accident; shortcuts still work. An amber EDITING band and a dotted grid make the mode impossible to miss. Ctrl+Z undoes layout and design changes but never rewinds a score or a clock.
+
+![Edit mode: the Library on the left, the layout in the middle, Properties on the right](docs/img/control-edit.png)
 
 Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Companion: right-click a page tab to rename, move or delete it. Each field type has its own control: clocks with Start/Stop, ±1 s and ±1 min; counters with their steps; choices as a row of buttons; on/off, text, penalties and pictures. **Shortcuts** are your own actions: each runs several steps as one undo step ("Next quarter: next period, reset game clock, reset shot clock"). Put one on a page as a button, give it a key, or both; a shortcut that is on no page still works by its key.
 
@@ -35,18 +41,24 @@ Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Com
   - **Animations**: thirty-one built-in moves (fly, wipe, fade, slide, pop, drop, flash, pulse, shake, bump) and your own recipes, previewed on the canvas.
 - **Live view**: any board, live, against checks, black or green, full screen or in a projector window on another display, with its browser-source URL one click away.
 
+![View → Graphics in split view: the scorebug above, live controls below](docs/img/graphics.png)
+
+![Live view: the full-screen board on black](docs/img/live-view.png)
+
 Also:
 
 - **Live data** from Sportzcast over MQTT (cloud or a local ScoreConnect III / Scorelink+), the legacy socket, or a LiveXML / JSON file or URL. It connects only when you press Connect. Bind its keys to fields with one click. See [docs/sportzcast.md](docs/sportzcast.md).
 - **Templates**: basketball, hockey, soccer, football, volleyball, baseball, a general scoreboard and a blank project.
 - **Recovery.** Unsaved work is kept, and offered back if CORBELscore closes unexpectedly.
-- **TeleScore projects open directly**, 1.x and 2.0 alike. They are converted, and the original file is never overwritten.
+- **TeleScore projects open directly**. They are converted, and the original file is never overwritten.
 
 Clocks keep time in milliseconds from the system clock, so they never drift and a pause keeps the fraction already run. Penalties count down only while their game clock runs.
 
 ## Run it
 
-On Windows 10 or 11 (64-bit), double-click **`CORBELscore.bat`**. The first time, it downloads the Electron runtime (about 160 MB) from GitHub into a `runtime` folder, checks its SHA-256 and unpacks it; after that it just starts CORBELscore. Nothing is installed on the computer and no Python or Node is needed. Drag a `.corbel` (or TeleScore `.tsproj`) file onto the launcher to open that project. Settings from TeleScore, including a saved Sportzcast token, are carried over on the first run.
+On Windows 10 or 11 (64-bit), double-click **`CORBELscore.bat`**. The first time, it downloads the Electron runtime (about 160 MB) from GitHub into a `runtime` folder, checks its SHA-256 and unpacks it; after that it just starts CORBELscore. Nothing is installed on the computer and no Python or Node is needed. Drag a `.corbel` file onto the launcher to open that project.
+
+![The start page: start from a sport or open a project](docs/img/start.png)
 
 | Command | What it does |
 |---|---|
@@ -144,7 +156,7 @@ The look is CORBELscore's own design system ([docs/design-system.md](docs/design
 
 ## Credits
 
-CORBELscore is built on TeleScore, created by the JumpShot team: riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035 and Glenn.
+CORBELscore is built on [TeleScore](https://github.com/JumpShot-Interactive/TeleScore), the open-source scoring utility by the JumpShot team (riscyseven, TheLittleDoctor, Fisk31, controldelta, SPCcleveland9035 and Glenn). Its engine, outputs and project format are CORBELscore's building blocks. Like TeleScore, CORBELscore is licensed under the AGPL-3.0.
 
 Red Hat Display, Red Hat Text and Red Hat Mono are © The Red Hat Project Authors (`app/assets/fonts/OFL-RedHat.txt`); Archivo is © The Archivo Project Authors (`app/assets/fonts/OFL-Archivo.txt`). All are under the SIL Open Font License 1.1.
 
