@@ -26,6 +26,16 @@ Drag a field from the Library onto the page; drag a control to move it; drag an 
 - Every drag has a keyboard equivalent: arrows move, Shift + arrows resize, Delete removes.
 - Nothing overlaps: the grid pushes controls down instead of stacking them.
 
+## Pop-outs scale, they don't crop
+
+Control and View can each move into a window of their own, because an operator's screen is shared with the vision mixer, OBS or vMix.
+
+- Any size, down to 320 × 200. **Fit** scales the whole panel (text, buttons, gaps) so a locked control page fits the window without scrolling. A smaller window shows the same page smaller, never half of it. Edit mode and View are tools with side panels, so Fit only shrinks them.
+- Fit works from the page's natural size (32 px rows, fixed bar heights), never from what it measured, so the scale cannot chase its own wrapping.
+- Each window has its own scale (its own session, since Chromium shares one zoom per site), and the main window is never affected.
+- Always on top is one switch on the pop-out's own bar, shown pressed when on, with a key (Ctrl + Shift + T).
+- The main window always says where a panel went and how to get it back. Closing a pop-out is the same as Put back: nothing is lost.
+
 ## Pages, like a button deck
 
 Controls live on pages (Game, Teams, …), the model operators already know from Stream Deck and Bitfocus Companion. Setup fields (team names, colours, logos) start on their own page so the game page holds only what changes during play. A shortcut does not need a place on any page: its key always works.

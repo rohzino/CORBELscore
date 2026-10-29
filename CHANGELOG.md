@@ -1,6 +1,17 @@
 # Changelog
 
-## CORBELscore 2.0.0a4 (unreleased)
+## CORBELscore 2.0.0a5 (unreleased)
+
+### Pop-out windows
+- **Pop out** (Ctrl + Shift + P) moves Control or View into a window of its own. Resize it to any size, down to 320 × 200, and put it on any screen. The main window marks the tab with ↗ and shows where it went, with **Show the window** and **Put it back**; it switches to the other panel if that one is still here.
+- **Always on top** (Ctrl + Shift + T) keeps a pop-out in front of other programs, such as OBS or vMix.
+- **Fit** scales everything in a pop-out with its window, text and buttons included: a locked control page fits the window without scrolling (50% to 150%), and Edit mode and View shrink to fit (down to 50%). **−** and **+** (Ctrl + − and Ctrl + =) choose a size yourself, from 50% to 200%; Ctrl + 0 goes back to Fit. Each window keeps its own scale; the main window is never affected.
+- Each pop-out remembers its size, place, scale and Always on top. One that was open when CORBELscore closed opens again next time, back on the main screen if its display has gone.
+- **Put back**, or closing the window, returns the panel to the main window.
+- Background shortcuts stay off while any CORBELscore window has focus, so a key pressed in a pop-out scores once.
+- Shortcut buttons on short tiles keep their label and key apart: the key moves beside the label, or the label keeps to one line.
+
+## CORBELscore 2.0.0a4 (26 October 2026)
 
 TeleScore is now **CORBELscore**, built on TeleScore's engine, outputs and project format.
 

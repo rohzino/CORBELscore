@@ -1,7 +1,7 @@
 {
   "name": "corbelscore",
   "productName": "CORBELscore",
-  "version": "2.0.0-alpha.4",
+  "version": "2.0.0-alpha.5",
   "description": "CORBELscore: live broadcast scoring solution. Built on TeleScore.",
   "license": "AGPL-3.0-only",
   "type": "module",

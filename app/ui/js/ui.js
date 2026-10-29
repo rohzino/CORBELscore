@@ -22,9 +22,16 @@ export const ui = {
   splitH: saved.splitH ?? 300,          // its height in px
   safe: saved.safe ?? false,            // designer: title- and action-safe guides
 };
+// This page as a pop-out window: "control" or "view" (from ?panel=), else null.
+export const PANEL = (() => { const p = new URLSearchParams(location.search).get("panel"); return p === "control" || p === "view" ? p : null; })();
+if (PANEL) ui.tab = PANEL;
+
+// Told whenever the page, mode or section changes (a pop-out refits its scale).
+export const uiChanged = new Set();
 export function remember() {
   const { sel, gsel, gpick, ...keep } = ui;
   try { localStorage.setItem("ts-ui", JSON.stringify(keep)); } catch { /* */ }
+  for (const fn of uiChanged) { try { fn(); } catch (e) { console.error(e); } }
 }
 
 // Key handlers the Control and View tabs register while they want keys first.

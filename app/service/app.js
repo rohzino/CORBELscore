@@ -267,7 +267,8 @@ export class App {
   statusInfo() {
     const p = this.project;
     const out = { open: !!p, dirty: this.dirty, path: p?.path ?? "", canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0,
-      undoLabel: this.undoStack.at(-1)?.label ?? "", redoLabel: this.redoStack.at(-1)?.label ?? "" };
+      undoLabel: this.undoStack.at(-1)?.label ?? "", redoLabel: this.redoStack.at(-1)?.label ?? "",
+      windows: structuredClone(this.windows ?? {}) };   // panels popped out into their own windows: {control: {top, scale, zoom}}
     if (!p) return out;
     out.files = this.writer ? structuredClone(this.writer.status) : {};
     out.folder = this.writer?.folder ?? "";
@@ -278,6 +279,9 @@ export class App {
     out.scoreUndo = { can: p.engine.canUndo(), canRedo: p.engine.canRedo() };
     return out;
   }
+
+  // The app window says which panels are in their own windows, so every window can show it.
+  windowsChanged(windows) { this.windows = windows; this._status(); }
 
   _status() {
     clearTimeout(this._statusT);
@@ -554,7 +558,7 @@ export class App {
   state() {
     return { version: APP_VERSION, project: this.projectInfo(), status: this.statusInfo(), settings: this.settings.forUi(),
       presets: Object.keys(PRESETS), blurbs: BLURBS, recovery: this.recoveryInfo(), types: Object.keys(FIELD_TYPES),
-      host: { dialogs: !!this.host?.dialog, projector: !!this.host?.openProjector, png: !!this.host?.capturePng, globalKeys: !!this.host?.setGlobalShortcuts },
+      host: { dialogs: !!this.host?.dialog, projector: !!this.host?.openProjector, png: !!this.host?.capturePng, globalKeys: !!this.host?.setGlobalShortcuts, popOut: !!this.host?.window },
       snapshot: this.project?.engine.snapshot() ?? null };
   }
 
@@ -640,6 +644,11 @@ export class App {
         if (!this.host?.openProjector) throw new Error("Projector windows need the CORBELscore app window.");
         await this.host.openProjector(this.studio.url(`/board/${encodeURIComponent(b.board)}?bg=black`), b);
         return {};
+      }
+      case "/api/window": {
+        if (!this.host?.window) throw new Error("Pop-out windows need the CORBELscore app window.");
+        if (!["control", "view"].includes(b.panel)) throw new Error("Only Control and View can pop out.");
+        return (await this.host.window(b)) ?? {};
       }
       case "/api/displays": return { displays: (await this.host?.displays?.()) ?? [] };
       case "/api/open": {
