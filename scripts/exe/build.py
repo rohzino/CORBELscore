@@ -43,7 +43,7 @@ def main():
     if plat in SHA and sha256(ez) != SHA[plat]:
         sys.exit(f"{ez} does not match the expected SHA-256.")
     pkg = json.loads((ROOT / "package.json").read_text())
-    ver = pkg["version"]                                      # 2.0.0-alpha.4
+    ver = pkg["version"]                                      # 2.0.0-alpha.5
     nums = ".".join((ver.split("-")[0].split(".") + ["0"] * 3)[:3]) + "." + (ver.split(".")[-1] if "-" in ver else "0")
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

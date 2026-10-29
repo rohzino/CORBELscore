@@ -4,9 +4,9 @@
 import { act, call, connect, edit, on, store } from "./api.js";
 import { applyScheme, DEFAULT_SCHEME, SCHEMES, schemeName } from "./colors.js";
 import "./fonts.js";   // the computer's fonts start loading now, for the designer's font list
-import { button, chip, clear, h, kbd } from "./dom.js";
+import { append, button, chip, clear, debounce, h, kbd } from "./dom.js";
 import { fromEvent, isGlobalSafe, normalise, typing } from "./keys.js";
-import { attempt, closeMenu, confirmDialog, dialog, editKeys, menu, remember, toast, ui } from "./ui.js";
+import { attempt, closeMenu, confirmDialog, dialog, editKeys, menu, PANEL, remember, toast, ui, uiChanged } from "./ui.js";
 import { mountControl } from "./control.js";
 import { mountView } from "./view.js";
 
@@ -17,12 +17,94 @@ let mounted = null;      // { name, unmount }
 let scheme = DEFAULT_SCHEME;
 
 applyScheme(scheme);
+const PANEL_NAME = { control: "Control", view: "View" };
+if (PANEL) { document.documentElement.classList.add("popout"); document.title = `CORBELscore · ${PANEL_NAME[PANEL]}`; }
+
+// ---- pop-out windows ------------------------------------------------------------------
+// Control and View can each live in a window of their own (any size, always on
+// top if wanted). The main window then says where they went.
+const popped = (tab) => !!store.status?.windows?.[tab];
+const canPop = () => !!store.state?.host?.popOut;
+const windowRequest = (op, panel, extra = {}) => attempt(() => call("/api/window", { op, panel, ...extra }));
+
+async function popOut(tab = ui.tab) {
+  const r = await windowRequest("open", tab);
+  // Keep the main window useful: show the other panel, unless it is out too.
+  const other = tab === "control" ? "view" : "control";
+  if (r && ui.tab === tab && !r.windows?.[other]) setTab(other);
+}
+
+function popHead() {
+  const w = store.status?.windows?.[PANEL] ?? {};
+  const fit = w.scale === "fit" || w.scale === undefined;
+  const pct = `${Math.round((w.zoom ?? 1) * 100)}%`;
+  append(head, [h("span.wordmark", { role: "img", "aria-label": "CORBELscore", title: "CORBELscore" }),
+    h("span.pop-name.caps", PANEL_NAME[PANEL]),
+    store.project ? h("span.pop-proj", { title: store.project.name }, store.project.name) : null,
+    h("span.spacer"),
+    store.project ? lights(store.status || {}) : null,
+    h("div.pop-scale", { role: "group", "aria-label": "Scale" },
+      button("−", () => windowRequest("scale", PANEL, { scale: "out" }), { cls: "btn-sm", title: "Smaller (Ctrl + −)" }),
+      h("button.btn.btn-sm.pop-fit", { type: "button", "aria-pressed": String(fit), onclick: () => windowRequest("scale", PANEL, { scale: "fit" }),
+        title: fit ? `Fit: everything scales to fill the window (now ${pct}). Use − and + to choose a size yourself.` : "Fit everything to the window (Ctrl + 0)" },
+        fit ? h("span", h("span.pop-fit-word", "Fit "), pct) : pct),
+      button("+", () => windowRequest("scale", PANEL, { scale: "in" }), { cls: "btn-sm", title: "Bigger (Ctrl + =)" })),
+    h("button.btn.btn-sm.pop-top", { type: "button", "aria-pressed": String(!!w.top), onclick: () => windowRequest("top", PANEL, { on: !w.top }),
+      title: w.top ? "This window stays in front of other programs. Click to let them cover it (Ctrl + Shift + T)." : "Keep this window in front of other programs, such as OBS or vMix (Ctrl + Shift + T)" },
+      h("span.pop-top-long", "Always on top"), h("span.pop-top-short", "On top")),
+    button("Put back", () => windowRequest("close", PANEL), { cls: "btn-sm", title: `Return ${PANEL_NAME[PANEL]} to the main window. Closing this window does the same.` })]);
+}
+
+// What the pop-out needs, in CSS pixels at 100%, so Fit can scale it to the window.
+// Locked Control fits the whole page of controls (and may grow to 150% on a big
+// window); Edit mode and View are tools with side panels, so they only shrink.
+function popNeed() {
+  const p = store.project;
+  if (!p) return { w: 640, h: 360, max: 1 };
+  if (PANEL === "view") return ui.viewSection === "live" ? { w: 960, h: 0, max: 1 } : { w: 1280, h: 760, max: 1 };
+  if (ui.mode === "edit") return { w: 1280, h: 720, max: 1 };
+  const pg = p.layout.pages.find((x) => x.id === ui.page) ?? p.layout.pages[0];
+  const used = Math.max(0, ...(pg?.tiles ?? []).map((t) => t.y + t.h));
+  // Fixed heights for the bars (40 + 46), not measured ones: a bar that wraps when the
+  // window shrinks must not change the scale, or the scale would chase the wrapping.
+  const rows = used ? used * 32 + (used - 1) * 8 : 240;   // 32 px rows (Locked shrinks rows to 30 before it scrolls), 8 px gaps
+  return { w: 900, h: 40 + 46 + 28 + rows, max: 1.5 };
+}
+let lastNeed = "";
+const reportNeed = debounce(() => {
+  if (!PANEL) return;
+  const n = popNeed();
+  const key = JSON.stringify(n);
+  if (key === lastNeed) return;
+  lastNeed = key;
+  call("/api/window", { op: "need", panel: PANEL, ...n }).catch(() => { lastNeed = ""; });
+}, 40);
+if (PANEL) { uiChanged.add(reportNeed); window.addEventListener("resize", reportNeed); }
+
+function awayPage(el, tab) {
+  const name = PANEL_NAME[tab];
+  el.append(h("div.away", h("div.panel",
+    h("h3", `${name} is in its own window`),
+    h("p.hint", `Use ${name} there. Put it back to have it in this window again; closing that window does the same.`),
+    h("div.row", button("Show the window", () => windowRequest("show", tab), { role: "accent" }), button("Put it back", () => windowRequest("close", tab))))));
+  return () => {};
+}
+
+function noProjectPage(el) {
+  el.append(h("div.away", h("div.panel",
+    h("h3", "No project is open"),
+    h("p.hint", "Open or start one in the main CORBELscore window and it appears here."),
+    h("div.row", button("Put back", () => windowRequest("close", PANEL))))));
+  return () => {};
+}
 
 // ---- header ---------------------------------------------------------------------
 function renderHead() {
   const p = store.project;
   const st = store.status || {};
   clear(head);
+  head.classList.toggle("pop", !!PANEL);
+  if (PANEL) { popHead(); return; }
   head.append(h("span.wordmark", { role: "img", "aria-label": "CORBELscore", title: "CORBELscore" }));
   if (p) {
     const name = h("input.proj", { value: p.name, "aria-label": "Project name", title: "Project name. Click to rename.", spellcheck: false, size: Math.max(4, p.name.length + 1) });
@@ -31,8 +113,11 @@ function renderHead() {
     head.append(name, h("span.saved", !p.path ? "Not saved yet" : st.dirty ? "Unsaved changes" : "Saved"));
     const tabs = h("nav.tabs", { role: "tablist" },
       [["control", "Control"], ["view", "View"]].map(([id, label]) => h("button", { role: "tab", "aria-selected": String(ui.tab === id), onclick: () => setTab(id),
-        title: id === "control" ? "Design your controls and run the game (F1)" : "Design the on-air graphics and watch them live (F2)" }, label)));
+        title: popped(id) ? `${label} is in its own window` : id === "control" ? "Design your controls and run the game (F1)" : "Design the on-air graphics and watch them live (F2)" },
+        label, popped(id) ? h("span.popped", { "aria-label": " (in its own window)" }, "↗") : null)));
     head.append(tabs);
+    if (canPop() && !popped(ui.tab)) head.append(button("Pop out", () => popOut(), { cls: "btn-sm",
+      title: `Open ${ui.tab === "control" ? "Control" : "View"} in a window of its own: any size, on any screen, always on top if you like (Ctrl + Shift + P)` }));
   }
   head.append(h("span.spacer"));
   if (p) head.append(lights(st));
@@ -60,7 +145,8 @@ function lights(st) {
 // The window may already have drawn it (the service announces it before the
 // request returns), so draw it again with these settings.
 function freshView(mode) {
-  Object.assign(ui, { page: null, sel: null, board: null, mode, tab: "control" });
+  // Control first, unless it is in its own window and View is here.
+  Object.assign(ui, { page: null, sel: null, board: null, mode, tab: PANEL ?? (popped("control") && !popped("view") ? "view" : "control") });
   remember();
   mounted?.unmount?.();
   mounted = null;
@@ -70,6 +156,7 @@ function freshView(mode) {
 }
 
 function setTab(id) {
+  if (PANEL) return;   // a pop-out shows its one panel
   ui.tab = id;
   remember();
   renderHead();
@@ -78,13 +165,16 @@ function setTab(id) {
 
 // ---- main area ---------------------------------------------------------------------
 function renderMain() {
-  const want = store.project ? ui.tab : "start";
+  const want = !store.project ? (PANEL ? "none" : "start") : !PANEL && popped(ui.tab) ? `away-${ui.tab}` : ui.tab;
   if (mounted?.name === want) return;
   mounted?.unmount?.();
   clear(main);
   if (want === "start") mounted = { name: "start", unmount: startPage(main) };
+  else if (want === "none") mounted = { name: "none", unmount: noProjectPage(main) };
+  else if (want.startsWith("away-")) mounted = { name: want, unmount: awayPage(main, ui.tab) };
   else if (want === "control") mounted = { name: "control", unmount: mountControl(main) };
   else mounted = { name: "view", unmount: mountView(main) };
+  reportNeed();
 }
 
 function templateCards(onPick) {
@@ -234,8 +324,14 @@ document.addEventListener("keydown", (e) => {
   if (combo === "Ctrl+Shift+S") { e.preventDefault(); save(true); return; }
   if (combo === "Ctrl+O") { e.preventDefault(); openProject(); return; }
   if (combo === "Ctrl+N") { e.preventDefault(); newDialog(); return; }
-  if (combo === "F1" && store.project) { e.preventDefault(); setTab("control"); return; }
-  if (combo === "F2" && store.project) { e.preventDefault(); setTab("view"); return; }
+  if (combo === "F1" && store.project && !PANEL) { e.preventDefault(); setTab("control"); return; }
+  if (combo === "F2" && store.project && !PANEL) { e.preventDefault(); setTab("view"); return; }
+  if (combo === "Ctrl+Shift+P" && store.project && !PANEL && canPop()) { e.preventDefault(); if (popped(ui.tab)) windowRequest("show", ui.tab); else popOut(); return; }
+  if (PANEL) {
+    const scale = { "Ctrl+=": "in", "Ctrl+Shift+=": "in", "Ctrl++": "in", "Ctrl+-": "out", "Ctrl+0": "fit" }[combo];
+    if (scale) { e.preventDefault(); windowRequest("scale", PANEL, { scale }); return; }
+    if (combo === "Ctrl+Shift+T") { e.preventDefault(); windowRequest("top", PANEL, { on: !store.status?.windows?.[PANEL]?.top }); return; }
+  }
   for (const handler of editKeys) if (handler(e, combo)) { e.preventDefault(); return; }
   if (!store.project) return;
   if (typing(document.activeElement) && !isGlobalSafe(combo)) return;
@@ -270,9 +366,10 @@ on("project", (p) => {
   const has = !!p;
   if (has !== lastHad) { lastHad = has; mounted?.unmount?.(); mounted = null; clear(main); renderMain(); }
   renderHead();
+  reportNeed();
   if (!has && mounted?.name === "start") renderStart();
 });
-on("status", () => renderHead());
+on("status", () => { renderHead(); if (store.project) renderMain(); });
 on("settings", (s) => { if (s.scheme && schemeName(s.scheme) !== scheme) { scheme = schemeName(s.scheme); applyScheme(scheme); } });
 on("notice", (n) => notice(n.text, n.alert, n.alert ? 0 : 5000));
 on("disconnected", () => notice("Lost contact with the CORBELscore service. Reconnecting…", true));

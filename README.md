@@ -41,6 +41,10 @@ Controls are grouped into **pages** (Game, Teams, …) like a Stream Deck or Com
   - **Animations**: thirty-one built-in moves (fly, wipe, fade, slide, pop, drop, flash, pulse, shake, bump) and your own recipes, previewed on the canvas.
 - **Live view**: any board, live, against checks, black or green, full screen or in a projector window on another display, with its browser-source URL one click away.
 
+![Control popped out into its own window, with Always on top on](docs/img/popout.png)
+
+**Pop out** either tab into a window of its own (Ctrl + Shift + P): any size, on any screen, with an **Always on top** switch so the controls stay in front of OBS or vMix. Everything in the window scales with it (**Fit**), or pick 50% to 200% with − and +. Each pop-out remembers its size, place and settings; **Put back** (or closing it) returns it to the main window.
+
 ![View → Graphics in split view: the scorebug above, live controls below](docs/img/graphics.png)
 
 ![Live view: the full-screen board on black](docs/img/live-view.png)

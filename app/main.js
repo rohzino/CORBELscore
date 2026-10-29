@@ -1,7 +1,8 @@
 // CORBELscore's desktop shell (Electron). Everything that matters runs in the
 // service (app/service); this file only gives it a window and the few things a
 // browser page cannot do: file dialogs, projector windows on other displays,
-// PNG capture, background shortcuts and opening folders.
+// pop-out windows for Control and View, PNG capture, background shortcuts and
+// opening folders.
 
 import { app, BrowserWindow, dialog, globalShortcut, screen, session, shell, Menu, nativeImage } from "electron";
 import fs from "node:fs";
@@ -34,6 +35,7 @@ function migrateFromTeleScore() {
 let win = null;
 let service = null;
 let quitting = false;
+let closingApp = false;   // the main window is closing: pop-outs close too, and reopen next time
 
 // ---- dialogs ----------------------------------------------------------------------------------
 const FILTERS = {
@@ -86,6 +88,129 @@ function openProjector(url, opts = {}) {
   w.loadURL(url);
 }
 
+// ---- pop-out windows ---------------------------------------------------------------------------
+// Control and View can each move into a window of their own: any size, on any
+// display, optionally always on top. Each has its own session partition, because
+// Chromium keeps one zoom per site per session and each window needs its own scale.
+// Size, place, scale and always-on-top are kept in windows.json; a pop-out that
+// was open when CORBELscore closed opens again next time.
+const PANELS = { control: { title: "Control", width: 960, height: 600 }, view: { title: "View", width: 1280, height: 800 } };
+const SCALE_MIN = 0.5, SCALE_MAX = 2;
+const pops = {};            // panel -> { win, need: {w, h, max} }
+let popState = {};          // panel -> { open, bounds, top, scale: "fit" | number }
+const popFile = () => path.join(app.getPath("userData"), "windows.json");
+
+function loadPops() {
+  try { popState = JSON.parse(fs.readFileSync(popFile(), "utf8")) || {}; } catch { popState = {}; }
+  for (const k of Object.keys(PANELS)) popState[k] = { open: false, bounds: null, top: false, scale: "fit", ...(popState[k] ?? {}) };
+}
+let popSaveT = 0;
+function savePops() {
+  clearTimeout(popSaveT);
+  popSaveT = setTimeout(() => { try { fs.writeFileSync(popFile(), JSON.stringify(popState, null, 2)); } catch { /* not worth stopping for */ } }, 300);
+}
+
+function popInfo() {
+  const out = {};
+  for (const [k, p] of Object.entries(pops)) out[k] = { top: !!popState[k].top, scale: popState[k].scale, zoom: Math.round(p.win.webContents.getZoomFactor() * 100) / 100 };
+  return out;
+}
+const popsChanged = () => service?.windowsChanged(popInfo());
+
+// A saved place is used only if most of it is still on a connected display.
+function onScreen(b) {
+  if (!b || !(b.width > 0 && b.height > 0)) return false;
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea;
+    const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+    const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    return w >= Math.min(160, b.width) && h >= Math.min(120, b.height);
+  });
+}
+
+// The zoom that fits the panel's natural size into the window, or the operator's own.
+const clampZoom = (z, max = SCALE_MAX) => Math.round(Math.max(SCALE_MIN, Math.min(max, z)) * 100) / 100;
+function fitZoom(panel) {
+  const p = pops[panel];
+  const st = popState[panel];
+  if (!p || p.win.isDestroyed()) return;
+  let z;
+  if (st.scale === "fit") {
+    const { width, height } = p.win.getContentBounds();
+    const n = p.need ?? { w: PANELS[panel].width, h: PANELS[panel].height, max: 1 };
+    z = clampZoom(Math.min(width / Math.max(1, n.w), n.h > 0 ? height / n.h : Infinity), n.max ?? 1);
+  } else z = clampZoom(Number(st.scale) || 1);
+  if (Math.abs(p.win.webContents.getZoomFactor() - z) >= 0.005) { p.win.webContents.setZoomFactor(z); popsChanged(); }
+}
+
+function openPop(panel) {
+  if (pops[panel] && !pops[panel].win.isDestroyed()) { const w = pops[panel].win; if (w.isMinimized()) w.restore(); w.show(); w.focus(); return; }
+  const st = popState[panel];
+  const def = PANELS[panel];
+  let bounds = onScreen(st.bounds) ? st.bounds : null;
+  if (!bounds) {   // centred on the display the main window is on
+    const a = screen.getDisplayMatching(win?.getBounds() ?? { x: 0, y: 0, width: 1, height: 1 }).workArea;
+    const width = Math.min(def.width, a.width - 40), height = Math.min(def.height, a.height - 40);
+    bounds = { x: Math.round(a.x + (a.width - width) / 2), y: Math.round(a.y + (a.height - height) / 2), width, height };
+  }
+  const w = new BrowserWindow({
+    title: `CORBELscore · ${def.title}`, icon: nativeImage.createFromPath(ICON), ...bounds, minWidth: 320, minHeight: 200,
+    backgroundColor: "#0c0d0d", show: false, autoHideMenuBar: true,
+    webPreferences: { partition: `persist:corbel-${panel}`, contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false },
+  });
+  w.setMenu(null);
+  pops[panel] = { win: w, need: null };
+  st.open = true;
+  if (st.top) w.setAlwaysOnTop(true, "floating");
+  w.once("ready-to-show", () => w.show());
+  guardWindow(w);
+  const keep = () => { if (!w.isDestroyed() && !w.isMinimized() && !w.isFullScreen() && !w.isMaximized()) { st.bounds = w.getNormalBounds(); savePops(); } };
+  w.on("resize", () => { keep(); fitZoom(panel); });
+  w.on("move", keep);
+  w.on("closed", () => {
+    delete pops[panel];
+    if (!closingApp) { st.open = false; savePops(); }   // closed by the operator: the panel goes back to the main window
+    popsChanged();
+    applyShortcutsSoon();
+  });
+  savePops();
+  w.webContents.setZoomFactor(1);   // the partition remembers the last zoom; start clean and fit once the page says what it needs
+  w.webContents.on("did-finish-load", () => {
+    fitZoom(panel);
+    if (panel === "view") w.webContents.executeJavaScript("window.__corbelLoadFonts ? window.__corbelLoadFonts() : 0", true).catch(() => {});
+  });
+  w.loadURL(`${service.studioUrl()}&panel=${panel}`);
+  popsChanged();
+}
+
+// Requests from a page (via the service): open, show, close, scale, always on top.
+async function popRequest(b) {
+  const panel = b.panel;
+  const st = popState[panel];
+  const p = pops[panel];
+  switch (b.op) {
+    case "open": openPop(panel); break;
+    case "show": if (p) { if (p.win.isMinimized()) p.win.restore(); p.win.show(); p.win.focus(); } else openPop(panel); break;
+    case "close": if (p) p.win.close(); win?.show(); win?.focus(); break;
+    case "top":
+      st.top = b.on === undefined ? !st.top : !!b.on;
+      p?.win.setAlwaysOnTop(st.top, "floating");
+      savePops(); popsChanged(); break;
+    case "scale": {
+      const cur = p ? p.win.webContents.getZoomFactor() : 1;
+      if (b.scale === "fit") st.scale = "fit";
+      else if (b.scale === "in" || b.scale === "out") st.scale = clampZoom(Math.round((cur + (b.scale === "in" ? 0.1 : -0.1)) * 10) / 10);
+      else st.scale = clampZoom(Number(b.scale) || 1);
+      savePops(); fitZoom(panel); popsChanged(); break;
+    }
+    case "need":   // the page's natural size in CSS pixels at 100%, and the largest scale that suits it
+      if (p) { p.need = { w: Math.max(200, Number(b.w) || 0), h: Math.max(0, Number(b.h) || 0), max: Math.max(SCALE_MIN, Math.min(SCALE_MAX, Number(b.max) || 1)) }; fitZoom(panel); }
+      break;
+    default: throw new Error("Unknown window request.");
+  }
+  return { windows: popInfo() };
+}
+
 // ---- PNG capture --------------------------------------------------------------------------------
 // One hidden window per board, kept open: the board page updates itself live,
 // so each capture is just a snapshot of what is already drawn.
@@ -126,9 +251,13 @@ function accelerator(qt) {
   return k ? [...mods, k].join("+") : "";
 }
 
+// Our own windows: the main one and the pop-outs. Projector windows do not count:
+// they handle no keys, so background shortcuts must keep working while one has focus.
+const ownWindows = () => [win, ...Object.values(pops).map((p) => p.win)].filter((w) => w && !w.isDestroyed());
+
 function applyShortcuts() {
   globalShortcut.unregisterAll();
-  if (!win || win.isDestroyed() || win.isFocused()) return;
+  if (!win || win.isDestroyed() || ownWindows().some((w) => w.isFocused())) return;
   for (const { key, run } of wanted) {
     const acc = accelerator(key);
     if (!acc) continue;
@@ -144,6 +273,23 @@ function applyShortcuts() {
   }
 }
 
+// Moving focus between two CORBELscore windows blurs one before focusing the
+// other; wait a moment so the shortcuts are not switched on in between.
+let shortcutsT = 0;
+function applyShortcutsSoon() { clearTimeout(shortcutsT); shortcutsT = setTimeout(applyShortcuts, 60); }
+
+// What every CORBELscore window shares: other sites open in the browser, nothing
+// navigates away, Ctrl+Shift+F12 opens the developer tools, focus switches shortcuts.
+function guardWindow(w) {
+  w.on("focus", applyShortcutsSoon);
+  w.on("blur", applyShortcutsSoon);
+  w.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
+  w.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(service.studio.url("/"))) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
+  w.webContents.on("before-input-event", (e, input) => {
+    if (input.type === "keyDown" && input.key === "F12" && input.control && input.shift) w.webContents.toggleDevTools();
+  });
+}
+
 // ---- the window ------------------------------------------------------------------------------
 async function createWindow() {
   win = new BrowserWindow({
@@ -153,14 +299,8 @@ async function createWindow() {
   });
   win.setMenu(null);
   win.once("ready-to-show", () => { win.maximize(); win.show(); });
-  win.on("focus", applyShortcuts);
-  win.on("blur", applyShortcuts);
   // Links to other sites (help pages, the feeds page) open in the normal browser.
-  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
-  win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith(service.studio.url("/"))) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
-  win.webContents.on("before-input-event", (e, input) => {
-    if (input.type === "keyDown" && input.key === "F12" && input.control && input.shift) win.webContents.toggleDevTools();
-  });
+  guardWindow(win);
   win.on("close", async (e) => {
     if (quitting || !service?.dirty) return;
     e.preventDefault();
@@ -178,7 +318,12 @@ async function createWindow() {
     quitting = true;
     win.close();
   });
-  win.on("closed", () => { win = null; app.quit(); });
+  win.on("closed", () => {
+    win = null;
+    closingApp = true;   // pop-outs close with it, and remember they were open
+    for (const p of Object.values(pops)) if (!p.win.isDestroyed()) p.win.close();
+    app.quit();
+  });
   await win.loadURL(service.studioUrl());
   // The computer's fonts, for the designer's font list, as the program starts.
   win.webContents.executeJavaScript("window.__corbelLoadFonts ? window.__corbelLoadFonts() : 0", true).catch(() => {});
@@ -192,8 +337,11 @@ app.whenReady().then(async () => {
   // The window may list the computer's fonts (for the font picker), copy to the
   // clipboard and go full screen; nothing else (camera, location…) is granted.
   const ALLOWED = new Set(["local-fonts", "clipboard-sanitized-write", "clipboard-read", "fullscreen"]);
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, done) => done(ALLOWED.has(permission)));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED.has(permission));
+  for (const ses of [session.defaultSession, ...Object.keys(PANELS).map((k) => session.fromPartition(`persist:corbel-${k}`))]) {
+    ses.setPermissionRequestHandler((_wc, permission, done) => done(ALLOWED.has(permission)));
+    ses.setPermissionCheckHandler((_wc, permission) => ALLOWED.has(permission));
+  }
+  loadPops();
   service = new App({
     dataDir: app.getPath("userData"),
     host: {
@@ -201,6 +349,7 @@ app.whenReady().then(async () => {
       openProjector,
       capturePng,
       displays,
+      window: popRequest,
       setGlobalShortcuts: (list) => { wanted = list; applyShortcuts(); },
       openPath: async (p) => { if (!p) throw new Error("Nothing to open."); const err = await shell.openPath(p); if (err) throw new Error(err); },
     },
@@ -215,6 +364,8 @@ app.whenReady().then(async () => {
   const file = process.argv.slice(app.isPackaged ? 1 : 2).find((a) => /\.(corbel|tsproj|json|tsp)$/i.test(a));
   if (file) await service.openFile(path.resolve(file)).catch((err) => dialog.showErrorBox("Could not open the project", err.message));
   await createWindow();
+  // Pop-outs that were open when CORBELscore last closed.
+  if (!process.env.CORBEL_SMOKE) for (const k of Object.keys(PANELS)) if (popState[k].open) openPop(k);
   if (process.env.CORBEL_SMOKE) smokeTest(process.env.CORBEL_SMOKE);
 });
 
@@ -244,11 +395,87 @@ async function smokeTest(dir) {
     // Loaded on its own as the window opened, no click needed.
     const fonts = await win.webContents.executeJavaScript("import('/ui/js/fonts.js').then((m) => m.localFonts()?.length ?? 'not loaded')");
     ok("computer's fonts loaded at start", typeof fonts === "number" && fonts > 0, String(fonts));
+    await popTest(dir, ok);
   } catch (err) { ok("smoke test ran", false, err.stack); }
   fs.writeFileSync(path.join(dir, "report.txt"), report.join("\n") + "\n");
   console.log(report.join("\n"));
   service.dirty = false;
   app.exit(report.some((l) => l.startsWith("FAIL")) ? 1 : 0);
+}
+
+// Pop-out windows: open from the button, Always on top, Fit at several sizes
+// (without touching the main window's scale), nothing wider than the window, put back.
+async function popTest(dir, ok) {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const js = (w, code) => w.webContents.executeJavaScript(code, true);
+  const until = async (fn, ms = 6000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await fn()) return true; await wait(100); } return false; };
+  const clickText = (w, text) => js(w, `(() => { const b = [...document.querySelectorAll("button")].find((x) => x.textContent.trim() === ${JSON.stringify(text)}); if (!b) return false; b.click(); return true; })()`);
+  ok("main window has a Pop out button", await clickText(win, "Pop out"));
+  ok("Control opens in its own window", await until(() => !!pops.control?.win && !pops.control.win.webContents.isLoading()));
+  const pw = pops.control.win;
+  await until(() => js(pw, "document.body.innerText.includes('Always on top')"));
+  const ptext = await js(pw, "document.body.innerText");
+  ok("pop-out shows Control with its bar", /AWAY SCORE/i.test(ptext) && /Always on top/.test(ptext) && /Put back/.test(ptext), pw.getTitle());
+  ok("main window moves to View", await until(() => js(win, "document.querySelector('.tabs [aria-selected=true]')?.textContent.startsWith('View') && document.body.innerText.includes('Graphics')")));
+  ok("main window marks Control as popped out", await until(() => js(win, "document.querySelector('.tabs .popped') !== null")));
+  // Always on top, from the page's own toggle.
+  await js(pw, "document.querySelector('.pop-top').click()");
+  ok("Always on top turns on", await until(() => pw.isAlwaysOnTop()));
+  ok("Always on top shows as on", await until(() => js(pw, "document.querySelector('.pop-top').getAttribute('aria-pressed') === 'true'")));
+  // Fit at several sizes: the scale follows the window, the main window keeps 100%.
+  const need = () => pops.control.need;
+  await until(() => !!need());
+  const sizes = [[480, 300], [900, 560], [1600, 340], [1500, 1000], [320, 200]];
+  const fits = [];
+  for (const [w, h] of sizes) {
+    pw.setContentSize(w, h);
+    await wait(500);
+    const cb = pw.getContentBounds();
+    const n = need();
+    const want = Math.round(Math.max(0.5, Math.min(n.max, Math.min(cb.width / n.w, cb.height / n.h))) * 100) / 100;
+    const z = pw.webContents.getZoomFactor();
+    const over = await js(pw, "document.documentElement.scrollWidth - innerWidth");
+    const headOver = await js(pw, "(() => { const h = document.getElementById('head'); return h.scrollWidth - h.clientWidth; })()");
+    fits.push({ size: `${cb.width}x${cb.height}`, zoom: z, want, over, headOver });
+    fs.writeFileSync(path.join(dir, `popout-${cb.width}x${cb.height}.png`), (await pw.webContents.capturePage()).toPNG());
+  }
+  ok("Fit scales to each window size", fits.every((f) => Math.abs(f.zoom - f.want) < 0.011), JSON.stringify(fits));
+  ok("nothing is wider than the window", fits.every((f) => f.over <= 0 && f.headOver <= 0));
+  ok("main window keeps its own scale", win.webContents.getZoomFactor() === 1, String(win.webContents.getZoomFactor()));
+  // A size of the operator's own, then Fit again.
+  pw.setContentSize(900, 560); await wait(400);
+  const before = pw.webContents.getZoomFactor();
+  await clickText(pw, "+");
+  await until(() => pw.webContents.getZoomFactor() > before + 0.05);
+  const bigger = pw.webContents.getZoomFactor();
+  ok("+ makes it bigger and Fit lets go", bigger > before && popState.control.scale !== "fit", `${before} → ${bigger}`);
+  pw.setContentSize(700, 400); await wait(400);
+  ok("a chosen size stays when the window changes", pw.webContents.getZoomFactor() === bigger);
+  await js(pw, "document.querySelector('.pop-fit').click()");
+  ok("Fit comes back", await until(() => popState.control.scale === "fit" && pw.webContents.getZoomFactor() !== bigger));
+  // The pop-out runs the game too.
+  const score = () => service.project.engine.snapshot().values["away.score"];
+  const s0 = Number(score());
+  await js(pw, "(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '+1'); b.click(); })()");
+  ok("a control in the pop-out scores", await until(() => Number(score()) === s0 + 1), `${s0} → ${score()}`);
+  ok("its place and settings are kept", await until(() => { try { const j = JSON.parse(fs.readFileSync(popFile(), "utf8")); return j.control.open && j.control.top && j.control.bounds?.width > 0; } catch { return false; } }));
+  // Put back.
+  await clickText(pw, "Put back");
+  ok("Put back closes the window", await until(() => !pops.control));
+  ok("main window no longer marks Control", await until(() => js(win, "document.querySelector('.tabs .popped') === null")));
+  // View pops out too, with the designer.
+  await popRequest({ op: "open", panel: "view" });
+  await until(() => pops.view && !pops.view.win.webContents.isLoading());
+  ok("View opens in its own window", await until(() => js(pops.view.win, "document.body.innerText.includes('Graphics') && document.body.innerText.includes('Always on top')")));
+  pops.view.win.setContentSize(800, 500); await wait(500);
+  fs.writeFileSync(path.join(dir, "popout-view-800x500.png"), (await pops.view.win.webContents.capturePage()).toPNG());
+  ok("View fits a small window", pops.view.win.webContents.getZoomFactor() < 1, String(pops.view.win.webContents.getZoomFactor()));
+  await js(win, "(() => { const t = [...document.querySelectorAll('.tabs button')].find((x) => x.textContent.startsWith('View')); t.click(); })()");
+  await wait(300);
+  ok("main window says where View went", await until(() => js(win, "document.body.textContent.includes('View is in its own window')")));
+  fs.writeFileSync(path.join(dir, "main-away.png"), (await win.webContents.capturePage()).toPNG());
+  pops.view.win.close();
+  ok("closing the window puts View back", await until(() => !pops.view && popState.view.open === false));
 }
 
 app.on("will-quit", () => globalShortcut.unregisterAll());

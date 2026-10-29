@@ -146,3 +146,22 @@ test("layout: autoLayout places every field once", () => {
   assert.equal(new Set(keys).size, keys.length, "no field twice");
   assert.deepEqual(new Set(keys), new Set(p.engine.fieldsToList().map((f) => f.key)), "and none left out");
 });
+
+test("studio: pop-out windows go through the app window, and every window hears about them", async () => {
+  // Without the app window there is nothing to pop out into.
+  await assert.rejects(() => app._api("/api/window", { op: "open", panel: "control" }), /app window/);
+  const asked = [];
+  app.host = { window: async (b) => { asked.push(b); return { windows: { control: { top: false, scale: "fit", zoom: 1 } } }; } };
+  try {
+    assert.equal(app.state().host.popOut, true);
+    const r = await app._api("/api/window", { op: "open", panel: "control" });
+    assert.deepEqual(asked, [{ op: "open", panel: "control" }]);
+    assert.equal(r.windows.control.scale, "fit");
+    await assert.rejects(() => app._api("/api/window", { op: "open", panel: "settings" }), /Control and View/);
+    app.windowsChanged({ control: { top: true, scale: 1.2, zoom: 1.2 } });
+    assert.deepEqual(app.statusInfo().windows, { control: { top: true, scale: 1.2, zoom: 1.2 } });
+  } finally {
+    app.host = null;
+    app.windowsChanged({});
+  }
+});
