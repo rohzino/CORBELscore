@@ -1,5 +1,6 @@
-# Build CORBELscore.exe and publish it as a GitHub Release: when a version
-# tag (v2.0.0-alpha.4, v2.1.0 …) is pushed, or by hand from the Actions tab
+# Build CORBELscore.exe and the two Mac disk images and publish them as one
+# GitHub Release: when a version tag (v2.0.0-alpha.4, v2.1.0 …) is pushed,
+# or by hand from the Actions tab
 # (Run workflow), which tags the current commit with package.json's version.
 # Tests run first; nothing is published if they fail.
 name: Release
@@ -13,7 +14,40 @@ permissions:
   contents: write
 
 jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test
+        run: node --test
+      - name: Download the Electron runtimes
+        run: |
+          EV=$(sed -n 's/^set "EV=\([^"]*\)".*/\1/p' CORBELscore.bat)
+          for a in arm64 x64; do
+            curl -fsSL -o "electron-v$EV-darwin-$a.zip" "https://github.com/electron/electron/releases/download/v$EV/electron-v$EV-darwin-$a.zip"
+          done
+      - name: Build CORBELscore.app for Apple Silicon and Intel
+        run: |
+          EV=$(sed -n 's/^set "EV=\([^"]*\)".*/\1/p' CORBELscore.bat)
+          for a in arm64 x64; do scripts/mac/build.sh --electron "electron-v$EV-darwin-$a.zip" --out dist; done
+      # Run the packaged Apple Silicon app's own check, headless. Run the binary directly:
+      # `open` would drop the environment variable.
+      - name: Self-check the packaged app
+        run: |
+          mkdir check && ditto -x -k dist/CORBELscore-*-mac-arm64.zip check
+          CORBEL_SMOKE="$RUNNER_TEMP/check" check/CORBELscore.app/Contents/MacOS/CORBELscore
+          cat "$RUNNER_TEMP/check/report.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/*.dmg
+          if-no-files-found: error
+
   release:
+    needs: mac
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,12 +65,17 @@ jobs:
           curl -fsSL -o electron.zip "https://github.com/electron/electron/releases/download/v$EV/electron-v$EV-win32-x64.zip"
       - name: Build CORBELscore.exe
         run: python3 scripts/exe/build.py --electron electron.zip
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac
+          path: dist
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then TAG="$GITHUB_REF_NAME"; else TAG="v$(node -p "require('./package.json').version")"; fi
           SUM=$(sha256sum dist/CORBELscore.exe | cut -d' ' -f1)
-          { cat scripts/exe/release-notes.md; echo; echo "SHA-256 of \`CORBELscore.exe\`: \`$SUM\`"; } > notes.md
+          { cat scripts/exe/release-notes.md; echo; echo "SHA-256 of \`CORBELscore.exe\`: \`$SUM\`"
+            for f in dist/*.dmg; do echo "SHA-256 of \`$(basename "$f")\`: \`$(sha256sum "$f" | cut -d' ' -f1)\`"; done; } > notes.md
           PRE=""; case "$TAG" in *-*) PRE="--prerelease";; esac
-          gh release create "$TAG" dist/CORBELscore.exe --target "$GITHUB_SHA" --title "CORBELscore ${TAG#v}" --notes-file notes.md $PRE
+          gh release create "$TAG" dist/CORBELscore.exe dist/*.dmg --target "$GITHUB_SHA" --title "CORBELscore ${TAG#v}" --notes-file notes.md $PRE
