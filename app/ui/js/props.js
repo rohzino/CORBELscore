@@ -6,7 +6,7 @@ import { button, chip, clear, h, kbd, rerender } from "./dom.js";
 import { formatMs, parseTime } from "/core/timefmt.js";
 import { TYPE_NAMES, validKey } from "/core/fields.js";
 import { ROLES } from "/core/project.js";
-import { fromEvent, isGlobalSafe, normalise } from "./keys.js";
+import { display, fromEvent, isGlobalSafe, normalise } from "./keys.js";
 import { attempt, check, colorInput, confirmDialog, numberInput, select, textInput, toast, ui } from "./ui.js";
 
 export function renderProps(el, ctx) {
@@ -56,7 +56,7 @@ function pageProps(ctx) {
       h("li", "Click a control to select it. Drag it to move; drag its right or bottom edge, or the corner, to resize."),
       h("li", "Arrow keys move the selected control; Shift + arrows resize it. Delete removes it from the page."),
       h("li", "Right-click a page tab to rename, move or delete it."),
-      h("li", "Ctrl+Z undoes a layout change. Scores and clocks are never undone by it."),
+      h("li", `${display("Ctrl+Z", { app: true })} undoes a layout change. Scores and clocks are never undone by it.`),
       h("li", "Press Locked (or L) to run the game."))),
   ];
 }
@@ -265,7 +265,7 @@ export function buttonForm(b, ctx) {
       h("label", "Colour"), select(Object.entries(ROLES), b.role, (v) => put({ role: v }), { k: `b-role-${b.id}` }),
       h("label", "Key"), h("div.row", keyBox, button("Clear", () => put({ hotkey: "" }, "Clear key"), { disabled: !b.hotkey }))),
     h("p.hint", clash.length ? h("span", { style: { color: "var(--alert-text)" } }, `Also used by ${clash.join(", ")}. Only the first one runs.`)
-      : b.hotkey ? (isGlobalSafe(b.hotkey) ? "Works while typing in a box too." : "Works anywhere in CORBELscore except while typing in a box.") : "Click the box and press a key, e.g. Space or Ctrl+1."),
+      : b.hotkey ? (isGlobalSafe(b.hotkey) ? "Works while typing in a box too." : "Works anywhere in CORBELscore except while typing in a box.") : `Click the box and press a key, e.g. Space or ${display("Ctrl+1")}.`),
     h("div.section-title", { style: { marginTop: "10px" } }, "Steps · run in order, undone together"),
     h("div.col", stepRows),
     h("div.row", { style: { marginTop: "8px" } },
