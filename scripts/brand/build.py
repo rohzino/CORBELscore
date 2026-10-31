@@ -122,6 +122,18 @@ async def main():
             '<rect x="212" y="628" width="260" height="160" rx="20" fill="#f5f5f1"/>'
             '</svg>\n')
     files["icon.svg"] = icon
+    # The same artwork on Apple's icon grid: an 824-unit tile centred in the 1024 canvas
+    # (100 units of margin), Mac corner radius, soft shadow. A full-bleed tile looks bigger
+    # than every other icon in the Dock.
+    k = 824 / 1024
+    icon_mac = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="CORBELscore"><title>CORBELscore</title>'
+                '<defs><filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity="0.45"/></filter></defs>'
+                '<rect x="100" y="100" width="824" height="824" rx="185" fill="#0c0d0d" filter="url(#shadow)"/>'
+                f'<g transform="translate(100 100) scale({k:.4f})">'
+                '<rect x="212" y="236" width="600" height="160" rx="20" fill="#4cc9d6"/>'
+                '<rect x="212" y="432" width="430" height="160" rx="20" fill="#f5f5f1"/>'
+                '<rect x="212" y="628" width="260" height="160" rx="20" fill="#f5f5f1"/></g></svg>\n')
+    files["icon-mac.svg"] = icon_mac
     for name, data in files.items():
         (OUT / name).write_text(data)
     json.dump({"wordmark_width": round(wb[2] - wb[0], 1), "tagline_size": round(tsize, 2), "cap": round(cap, 1)}, open(OUT / "metrics.json", "w"), indent=1)
@@ -133,6 +145,10 @@ async def main():
             await page.set_content(f"<style>html,body{{margin:0;background:transparent}}</style><img src='data:image/svg+xml;utf8,{icon.replace('#', '%23')}' width={size} height={size}>")
             await page.screenshot(path=str(OUT / f"icon-{size}.png"), omit_background=True)
             await page.close()
+        page = await b.new_page(viewport={"width": 1024, "height": 1024})
+        await page.set_content(f"<style>html,body{{margin:0;background:transparent}}</style><img src='data:image/svg+xml;utf8,{icon_mac.replace('#', '%23')}' width=1024 height=1024>")
+        await page.screenshot(path=str(OUT / "icon-mac-1024.png"), omit_background=True)   # app/assets/icon.icns is made from this by scripts/mac/icon.sh
+        await page.close()
         page = await b.new_page(viewport={"width": 1640, "height": 400})
         lock = files["lockup-on-basalt.svg"]
         await page.set_content(f"<style>html,body{{margin:0;background:#0c0d0d}}</style><img src='data:image/svg+xml;utf8,{lock.replace('#', '%23')}' style='width:1640px'>")
@@ -142,6 +158,6 @@ async def main():
     subprocess.run(["convert", *pngs, str(ROOT / "app/assets/icon.ico")], check=True)
     for s in (16, 24, 32, 48, 64, 128):
         (OUT / f"icon-{s}.png").unlink()
-    print("wrote", ", ".join(files), "icon.ico, icon-256.png, icon-512.png, lockup-preview.png")
+    print("wrote", ", ".join(files), "icon.ico, icon-256.png, icon-512.png, icon-mac-1024.png, lockup-preview.png")
 
 asyncio.run(main())

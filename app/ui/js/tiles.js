@@ -5,6 +5,7 @@
 
 import { act, fileUrl, store } from "./api.js";
 import { button, chip, h, kbd } from "./dom.js";
+import { display } from "./keys.js";
 import { attempt, toast } from "./ui.js";
 import { BoardView } from "/render/board-view.js";
 
@@ -60,7 +61,7 @@ export function renderTile(t, { project, snap }) {
     if (!b) { el.classList.add("missing"); el.append(h("span.small", "That shortcut was deleted.")); }
     else {
       const pb = h(`button.btn.pbtn${b.role && b.role !== "neutral" ? ".btn-" + b.role : ""}`, { type: "button", "data-button": b.id,
-        title: b.hotkey ? `${b.label} · shortcut ${b.hotkey}` : b.label, onclick: () => run(b.action) },
+        title: b.hotkey ? `${b.label} · shortcut ${display(b.hotkey)}` : b.label, onclick: () => run(b.action) },
         h("span.lbl", b.label), b.hotkey ? kbd(b.hotkey) : null);
       el.append(pb);
     }

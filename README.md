@@ -10,6 +10,19 @@ Live broadcast scoring solution. Keep score in one window. The scores go out as 
 
 Get **CORBELscore.exe** from [Releases](https://github.com/rohzino/CORBELscore/releases) (Windows 10 or 11, 64-bit). It is the whole program in one file: double-click it, no installer. The first run takes a few seconds to set up; after that it opens straight away. It is not code-signed yet, so Windows SmartScreen may say it "protected your PC": choose **More info → Run anyway**.
 
+### Mac
+
+Get the disk image for your Mac from [Releases](https://github.com/rohzino/CORBELscore/releases): **`CORBELscore-<version>-mac-arm64.dmg`** for Apple Silicon (M1 and later) or **`…-mac-x64.dmg`** for Intel. It needs macOS 13 (Ventura) or later. If you are not sure which Mac you have, choose  → About This Mac: "Chip: Apple M…" is Apple Silicon, "Processor: Intel" is Intel.
+
+1. Open the disk image and drag **CORBELscore** onto **Applications**.
+2. Open CORBELscore from Applications. macOS says **"CORBELscore" Not Opened**, because the app is not notarised by Apple yet. Click **Done** (not Move to Trash).
+3. Open **System Settings → Privacy & Security** and scroll down to **Security**. It says **"CORBELscore" was blocked to protect your Mac**. Click **Open Anyway** and confirm with your password or Touch ID.
+4. After that, CORBELscore opens like any other app. On macOS 15 and later, right-clicking and choosing Open no longer gets past this block.
+
+On a Mac, app commands use ⌘ (⌘S saves, ⌘Z undoes) and project shortcuts keep their meaning: Ctrl in a project is the Control key (⌃). Closing the window quits CORBELscore, after asking to save. More in [docs/macos.md](docs/macos.md).
+
+![CORBELscore on macOS](docs/img/macos/control.png)
+
 ## What it does
 
 CORBELscore has two tabs.
@@ -70,6 +83,15 @@ On Windows 10 or 11 (64-bit), double-click **`CORBELscore.bat`**. The first time
 | `CORBELscore.bat test` | Run the test suite, then a check of the app window, PNG output and shortcuts |
 | `CORBELscore.bat build` | Make a portable copy in `dist\CORBELscore` (`CORBELscore.exe`; copy the whole folder) |
 | `CORBELscore.bat update` | Download the runtime again |
+
+On a Mac (Apple Silicon or Intel), run **`./CORBELscore.command`** in Terminal instead. It downloads the matching Electron runtime the first time, checks its SHA-256 and clears the download flag from the runtime it fetched.
+
+| Command | What it does |
+|---|---|
+| `./CORBELscore.command` | Run CORBELscore (add a `.corbel` file to open it) |
+| `./CORBELscore.command test` | Run the test suite, then a check of the app window, PNG output and shortcuts |
+| `./CORBELscore.command update` | Download the runtime again |
+| `scripts/mac/build.sh --electron <zip>` | Build `CORBELscore.app`, a `.dmg` and a `.zip` ([docs/macos.md](docs/macos.md)) |
 
 ### One file to share
 
@@ -138,9 +160,10 @@ The tests need nothing installed beyond Node 22:
 - **`test/logic.test.js`**: rules, overrides and conditions.
 - **`test/legacy.test.js`**: 1.x project import.
 - **`test/sportzcast.test.js`**: fake MQTT brokers, legacy sockets and LiveXML files.
+- **`test/mac.test.js`**: the Mac key mapping (⌘ for app commands, ⌘Z as score or design undo, Mac key symbols) and which project Finder hands over.
 - **`test/ui.test.js`**: drives the studio window in Chromium, if Playwright is installed (skipped otherwise).
 
-`CORBELscore.bat test` runs the same suite inside the downloaded runtime, so Windows needs no Node.
+`CORBELscore.bat test` (Windows) and `./CORBELscore.command test` (Mac) run the same suite inside the downloaded runtime, so neither needs Node.
 
 ## Project layout
 
@@ -150,6 +173,8 @@ app/core      engine: fields, clocks, actions + undo, rules and conditions, boar
 app/service   the service: outputs, web servers, live data, files, settings, studio API (Node)
 app/ui        the studio window (HTML, CSS, JS modules) and the shared board renderer
 app/main.js   the desktop shell (Electron): window, dialogs, projector, PNG, shortcuts
+app/mac-menu.js  the macOS menu bar
+scripts/mac   macOS: build.sh (app, dmg, zip), icon.sh (icon.icns)
 test/         node --test suites
 docs/         logic, Sportzcast, UI principles, OBS plugin plan, XSD for fields.xml
 ```
