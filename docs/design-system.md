@@ -23,6 +23,8 @@ The lockup stacks the wordmark over **LIVE BROADCAST SCORING SOLUTION**: Red Hat
 
 A corbel seen from the side: three courses of stone, each stepping further out than the one below. The top course is Patina, the score the bracket holds up; the others are Limestone, on a Basalt tile with 22% corner radius (`icon.svg`, `icon.ico`, `icon-256.png`, `icon-512.png`).
 
+**On macOS** the same artwork sits on Apple's icon grid instead of filling the canvas: an 824-unit tile centred in a 1024 canvas (100 units of margin), a 185-unit corner radius and a soft drop shadow, so it is not bigger than every other Dock icon. The source is `app/assets/brand/icon-mac.svg`, with `icon-mac-1024.png` rendered from it by `scripts/brand/build.py` (or by `scripts/mac/icon.sh` with the Electron runtime). `scripts/mac/icon.sh` makes `app/assets/icon.icns` from the 1024 px master with `sips` (16, 32, 128, 256 and 512 px, each with an @2x) and `iconutil`. `icon.icns` is committed, so building the app needs no Chromium.
+
 ### Credit
 
 CORBELscore is built on TeleScore, the open-source scoring utility by the JumpShot team. Say so in About, the README and anything describing where the software comes from: "Built on TeleScore."

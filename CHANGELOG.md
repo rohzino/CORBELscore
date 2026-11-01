@@ -1,6 +1,22 @@
 # Changelog
 
-## CORBELscore 2.0.0a5 (unreleased)
+## CORBELscore 2.0.0a6 (unreleased)
+
+### macOS
+CORBELscore now runs on macOS 13 or later, on Apple Silicon and Intel. The Windows and Linux builds are unchanged.
+- **Downloads.** `CORBELscore-2.0.0-alpha.6-mac-arm64.dmg` (Apple Silicon) and `…-mac-x64.dmg` (Intel): open the disk image and drag CORBELscore to Applications. The app is signed ad hoc, not notarised, so macOS asks you to allow it once ([docs/macos.md](docs/macos.md)).
+- **`CORBELscore.command`** runs, tests and updates CORBELscore from a checkout, like `CORBELscore.bat`. `scripts/mac/build.sh` builds the app and the disk image with the tools that come with macOS.
+- **⌘ for app commands.** Save, Save as, Open, New, undo and redo, Pop out, Always on top and the pop-out scale keys use ⌘; keys are shown the Mac way (⌘S, ⌃Space, ⇧, ⌥). Shortcuts stored in a project keep their meaning: Ctrl is the Control key (⌃), so a project moves between Windows and Mac unchanged. **⌘Z / ⌘⇧Z** do what Ctrl+Z / Ctrl+Y do on Windows in the same place: score undo and redo in Locked mode, design undo and redo in Edit mode and Graphics, and the typing in a text box. ⌘1 and ⌘2 switch Control and View, as F1 and F2 do.
+- **A menu bar** (CORBELscore, Edit, Window), so ⌘C, ⌘V, ⌘A and ⌘Q work. **About CORBELscore** opens the usual About box.
+- **⌘Q and Quit from the Dock** ask "Save changes?" like closing the window, and Cancel keeps CORBELscore open. Pop-outs that were open come back next time.
+- **Finder.** Double-clicking a `.corbel` file, or dropping it on the Dock icon, opens it, and asks first if there are unsaved changes. A second launch brings the running window forward.
+- **Always on top** floats over another program in full screen (OBS, Safari), and the Dock icon stays. **⌃⌘F** toggles full screen in any window.
+- **A Mac icon** on Apple's icon grid (`icon.icns`, rebuilt by `scripts/mac/icon.sh`).
+
+### Fixes
+- A project name you are typing no longer loses focus, text or cursor when live data, the files or the web server change the header.
+
+## CORBELscore 2.0.0a5 (28 October 2026)
 
 ### Pop-out windows
 - **Pop out** (Ctrl + Shift + P) moves Control or View into a window of its own. Resize it to any size, down to 320 × 200, and put it on any screen. The main window marks the tab with ↗ and shows where it went, with **Show the window** and **Put it back**; it switches to the other panel if that one is still here.

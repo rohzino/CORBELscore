@@ -1,6 +1,7 @@
 // Shared UI pieces: per-window state, menus, dialogs, toasts, form rows.
 
 import { h, button, noteCommit } from "./dom.js";
+import { display } from "./keys.js";
 
 // Window state, remembered between sessions where it helps.
 const saved = (() => { try { return JSON.parse(localStorage.getItem("ts-ui") || "{}"); } catch { return {}; } })();
@@ -64,7 +65,7 @@ export function menu(anchor, items) {
     if (it === "-") m.appendChild(h("hr"));
     else if (it.title) m.appendChild(h("div.mlabel.caps", it.title));
     else m.appendChild(h("button", { type: "button", role: "menuitem", disabled: !!it.disabled, onclick: () => { closeMenu(); it.run(); } },
-      h("span", it.label), it.kbd ? h("span.kbd", it.kbd) : null));
+      h("span", it.label), it.kbd ? h("span.kbd", display(it.kbd, { app: true })) : null));
   }
   document.body.appendChild(m);
   const r = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.x, bottom: anchor.y, top: anchor.y, right: anchor.x };

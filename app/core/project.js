@@ -14,7 +14,7 @@ import { makeSource } from "./source.js";
 
 export const FORMAT = "telescore-project";
 export const VERSION = 3;
-export const APP_VERSION = "2.0.0a5";
+export const APP_VERSION = "2.0.0a6";
 
 export class ProjectError extends Error {}
 

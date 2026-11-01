@@ -1,3 +1,5 @@
+import { display } from "./keys.js";
+
 // Small DOM helpers. h("div.card#id", {props}, children...) builds elements;
 // props starting with "on" become listeners; "style" may be an object;
 // data-* and aria-* are attributes.
@@ -98,4 +100,4 @@ export const chip = (word, kind = "muted", title = "") => h(`span.chip.chip-${ki
 
 export function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
-export function kbd(keys) { return h("span.kbd", keys); }
+export function kbd(keys, opts) { return h("span.kbd", display(keys, opts)); }

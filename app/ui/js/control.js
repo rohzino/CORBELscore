@@ -7,6 +7,7 @@
 
 import { call, edit, on, store } from "./api.js";
 import { button, chip, clear, h } from "./dom.js";
+import { display } from "./keys.js";
 import { COLUMNS, defaultSize, findSpot, overlaps, settle } from "/core/layout.js";
 import { newId } from "/core/ids.js";
 import { renderTile } from "./tiles.js";
@@ -62,8 +63,8 @@ export function mountControl(root) {
         button("Add heading", () => addTile({ kind: "heading", text: "Heading" })),
         button("Add board preview", () => addTile({ kind: "preview", board: p.boards[0]?.id }), { disabled: !p.boards.length }),
         h("span.sep", { style: { width: "1px", alignSelf: "stretch", background: "var(--rule)" } }),
-        button("Undo", designUndo, { disabled: !st.canUndo, title: st.canUndo ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Nothing to undo" }),
-        button("Redo", designRedo, { disabled: !st.canRedo, title: st.canRedo ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Nothing to redo" }));
+        button("Undo", designUndo, { disabled: !st.canUndo, title: st.canUndo ? `Undo ${st.undoLabel} (${display("Ctrl+Z", { app: true })})` : "Nothing to undo" }),
+        button("Redo", designRedo, { disabled: !st.canRedo, title: st.canRedo ? `Redo ${st.redoLabel} (${display("Ctrl+Y", { app: true })})` : "Nothing to redo" }));
     }
     const sw = h("div.modeswitch", { role: "group", "aria-label": "Mode" },
       h("button.edit", { type: "button", "aria-pressed": String(editing()), onclick: () => setMode("edit"), title: "Arrange controls and change settings (E)" }, "Edit"),

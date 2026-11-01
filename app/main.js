@@ -9,9 +9,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { App } from "./service/app.js";
+import { buildMacMenu } from "./mac-menu.js";
+import { startFile } from "./start-file.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const MAC = process.platform === "darwin";
 const ICON = path.join(HERE, "assets", "icon.ico");
+const ICON_PNG = path.join(HERE, "assets", "brand", "icon-512.png");
 
 // The self-check keeps its own settings, so it never touches the real ones.
 if (process.env.CORBEL_SMOKE) app.setPath("userData", path.join(process.env.CORBEL_SMOKE, "data"));
@@ -31,6 +35,15 @@ function migrateFromTeleScore() {
     }
   } catch { /* a fresh start is fine */ }
 }
+
+// Finder hands over a project with "open-file", which can arrive before the app is ready.
+let ready = false;
+const toOpen = [];
+app.on("open-file", (e, file) => {
+  e.preventDefault();
+  if (!ready) toOpen.push(file);
+  else openFromOutside(file);
+});
 
 let win = null;
 let service = null;
@@ -161,7 +174,7 @@ function openPop(panel) {
   w.setMenu(null);
   pops[panel] = { win: w, need: null };
   st.open = true;
-  if (st.top) w.setAlwaysOnTop(true, "floating");
+  if (st.top) setTop(w, true);
   w.once("ready-to-show", () => w.show());
   guardWindow(w);
   const keep = () => { if (!w.isDestroyed() && !w.isMinimized() && !w.isFullScreen() && !w.isMaximized()) { st.bounds = w.getNormalBounds(); savePops(); } };
@@ -194,7 +207,7 @@ async function popRequest(b) {
     case "close": if (p) p.win.close(); win?.show(); win?.focus(); break;
     case "top":
       st.top = b.on === undefined ? !st.top : !!b.on;
-      p?.win.setAlwaysOnTop(st.top, "floating");
+      if (p) setTop(p.win, st.top);
       savePops(); popsChanged(); break;
     case "scale": {
       const cur = p ? p.win.webContents.getZoomFactor() : 1;
@@ -290,6 +303,26 @@ function guardWindow(w) {
   });
 }
 
+// A project opened from Finder while CORBELscore runs goes through the page's own
+// File → Open, which asks "Save changes?" first.
+function openFromOutside(file) {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show(); win.focus();
+  win.webContents.executeJavaScript(`window.__corbelOpen(${JSON.stringify(path.resolve(file))})`, true).catch(() => {});
+}
+
+// Always on top. Floating is enough over normal windows; over another app in full screen
+// (OBS, Safari) the window also has to join that app's Space. That makes macOS treat CORBELscore
+// as a helper app and hide its Dock icon, so the icon is shown again. Turning it off undoes all of it.
+function setTop(w, on) {
+  w.setAlwaysOnTop(on, "floating");
+  if (MAC) {
+    w.setVisibleOnAllWorkspaces(on, { visibleOnFullScreen: true });
+    app.dock?.show();
+  }
+}
+
 // ---- the window ------------------------------------------------------------------------------
 async function createWindow() {
   win = new BrowserWindow({
@@ -329,10 +362,25 @@ async function createWindow() {
   win.webContents.executeJavaScript("window.__corbelLoadFonts ? window.__corbelLoadFonts() : 0", true).catch(() => {});
 }
 
-app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+app.on("second-instance", () => {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  if (MAC) app.focus({ steal: true });   // focus() alone does not bring an inactive app forward on macOS
+  win.focus();
+});
+app.on("activate", () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); } });
 
 app.whenReady().then(async () => {
-  Menu.setApplicationMenu(null);
+  if (MAC) {
+    const toPage = (code) => () => { const w = BrowserWindow.getFocusedWindow() ?? win; w?.webContents.executeJavaScript(code, true).catch(() => {}); };
+    Menu.setApplicationMenu(buildMacMenu({
+      about: () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); win.webContents.executeJavaScript("window.__corbelAbout()", true).catch(() => {}); } },
+      undo: toPage("window.__corbelUndo(false)"),
+      redo: toPage("window.__corbelUndo(true)"),
+    }));
+    if (!app.isPackaged) app.dock?.setIcon(nativeImage.createFromPath(ICON_PNG));   // the Dock shows CORBELscore, not Electron, in a development run
+  } else Menu.setApplicationMenu(null);
   if (process.platform === "win32") app.setAppUserModelId("CORBELscore");   // one taskbar group, with CORBELscore's icon
   // The window may list the computer's fonts (for the font picker), copy to the
   // clipboard and go full screen; nothing else (camera, location…) is granted.
@@ -361,7 +409,9 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  const file = process.argv.slice(app.isPackaged ? 1 : 2).find((a) => /\.(corbel|tsproj|json|tsp)$/i.test(a));
+  ready = true;
+  const file = startFile(toOpen, process.argv.slice(app.isPackaged ? 1 : 2));
+  toOpen.length = 0;
   if (file) await service.openFile(path.resolve(file)).catch((err) => dialog.showErrorBox("Could not open the project", err.message));
   await createWindow();
   // Pop-outs that were open when CORBELscore last closed.
@@ -396,6 +446,8 @@ async function smokeTest(dir) {
     const fonts = await win.webContents.executeJavaScript("import('/ui/js/fonts.js').then((m) => m.localFonts()?.length ?? 'not loaded')");
     ok("computer's fonts loaded at start", typeof fonts === "number" && fonts > 0, String(fonts));
     await popTest(dir, ok);
+    await openFileTest(dir, ok);
+    await typingTest(ok);
   } catch (err) { ok("smoke test ran", false, err.stack); }
   fs.writeFileSync(path.join(dir, "report.txt"), report.join("\n") + "\n");
   console.log(report.join("\n"));
@@ -478,14 +530,52 @@ async function popTest(dir, ok) {
   ok("closing the window puts View back", await until(() => !pops.view && popState.view.open === false));
 }
 
+// A project opened from Finder while CORBELscore runs: it asks before dropping unsaved
+// changes, and opens normally when there are none.
+async function openFileTest(dir, ok) {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const js = (code) => win.webContents.executeJavaScript(code, true);
+  const until = async (fn, ms = 6000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await fn()) return true; await wait(100); } return false; };
+  await service.newProject("Hockey");
+  const file = path.join(dir, "finder-open.corbel");
+  service.save(file);
+  const hockey = service.project.name;
+  await service.newProject("Soccer");
+  const soccer = service.project.name;
+  service.dirty = true;
+  openFromOutside(file);
+  ok("an open from Finder asks before dropping unsaved changes", await until(() => js("document.querySelector('dialog[open]')?.textContent.includes('Save changes')")));
+  ok("and the project is untouched meanwhile", service.project.name === soccer && service.dirty);
+  await js("[...document.querySelectorAll('dialog[open] button')].find((b) => b.textContent.trim() === 'Cancel').click()");
+  await wait(300);
+  ok("Cancel keeps the unsaved project", service.project.name === soccer && service.dirty);
+  service.dirty = false;
+  openFromOutside(file);
+  ok("with nothing unsaved it opens the project", await until(() => service.project.name === hockey), `${soccer} → ${service.project.name}`);
+}
+
+// A project name being typed keeps its focus and text when the header is rebuilt by a status change
+// (live data, outputs, the web server all cause them).
+async function typingTest(ok) {
+  const js = (code) => win.webContents.executeJavaScript(code, true);
+  await js("(() => { const e = document.querySelector('input.proj'); e.focus(); e.select(); document.execCommand('insertText', false, 'Typing'); })()");
+  for (let i = 0; i < 3; i++) { service.windowsChanged(popInfo()); await new Promise((r) => setTimeout(r, 250)); }
+  const now = await js("document.activeElement?.className + '|' + document.querySelector('input.proj')?.value");
+  ok("typing a project name survives status changes", now === "proj|Typing", now);
+}
+
 app.on("will-quit", () => globalShortcut.unregisterAll());
 app.on("window-all-closed", () => app.quit());
 let stopping = false;
 app.on("before-quit", async (e) => {
   if (stopping || !service) return;
   e.preventDefault();
+  // ⌘Q, Quit from the Dock, logout: with unsaved design changes this is closing the main window,
+  // which asks Save / Don't save / Cancel. Cancel leaves CORBELscore open.
+  if (!quitting && service.dirty && win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.close(); return; }
   stopping = true;
   quitting = true;
+  closingApp = true;   // pop-outs closed by the quit are remembered, like the ones closed with the main window
   for (const c of capturers.values()) if (!c.win.isDestroyed()) c.win.destroy();
   try { await service.stop(); } catch { /* closing anyway */ }
   app.quit();

@@ -5,7 +5,7 @@ import { act, call, connect, edit, on, store } from "./api.js";
 import { applyScheme, DEFAULT_SCHEME, SCHEMES, schemeName } from "./colors.js";
 import "./fonts.js";   // the computer's fonts start loading now, for the designer's font list
 import { append, button, chip, clear, debounce, h, kbd } from "./dom.js";
-import { fromEvent, isGlobalSafe, normalise, typing } from "./keys.js";
+import { appCombo, fromEvent, hotkeyCombo, isGlobalSafe, normalise, typing, undoKey } from "./keys.js";
 import { attempt, closeMenu, confirmDialog, dialog, editKeys, menu, PANEL, remember, toast, ui, uiChanged } from "./ui.js";
 import { mountControl } from "./control.js";
 import { mountView } from "./view.js";
@@ -102,6 +102,10 @@ function noProjectPage(el) {
 function renderHead() {
   const p = store.project;
   const st = store.status || {};
+  // The header is rebuilt on every status change (live data, files, the web server). A project name
+  // being typed must not lose its focus, its text or its cursor when that happens.
+  const pending = document.activeElement?.matches?.("input.proj") && head.contains(document.activeElement)
+    ? { value: document.activeElement.value, from: document.activeElement.selectionStart, to: document.activeElement.selectionEnd } : null;
   clear(head);
   head.classList.toggle("pop", !!PANEL);
   if (PANEL) { popHead(); return; }
@@ -123,6 +127,8 @@ function renderHead() {
   if (p) head.append(lights(st));
   head.append(button("File", (e) => fileMenu(e.currentTarget), { title: "New, open, save" }),
     button("Settings", (e) => settingsMenu(e.currentTarget), { title: "Colours and shortcuts" }));
+  const box = pending && head.querySelector("input.proj");
+  if (box) { box.value = pending.value; box.size = Math.max(4, pending.value.length + 1); box.focus(); box.setSelectionRange(pending.from, pending.to); }
 }
 
 function light(word, state, title) {
@@ -318,8 +324,13 @@ function notice(text, alert = false, ms = 0) {
 
 document.addEventListener("keydown", (e) => {
   if (document.querySelector("dialog[open]")) return;
-  const combo = fromEvent(e);
-  if (!combo) return;
+  const raw = fromEvent(e);
+  if (!raw) return;
+  // On a Mac the app's own commands answer to ⌘ (see keys.js); on other systems this is the same key.
+  const combo = appCombo(raw);
+  // ⌘Z in a text box undoes the typing and nothing else.
+  const u = undoKey(raw);
+  if (u && typing(document.activeElement)) { e.preventDefault(); document.execCommand(u); return; }
   if (combo === "Ctrl+S") { e.preventDefault(); save(); return; }
   if (combo === "Ctrl+Shift+S") { e.preventDefault(); save(true); return; }
   if (combo === "Ctrl+O") { e.preventDefault(); openProject(); return; }
@@ -336,7 +347,9 @@ document.addEventListener("keydown", (e) => {
   if (!store.project) return;
   if (typing(document.activeElement) && !isGlobalSafe(combo)) return;
   // Background (system-wide) shortcuts are switched off while this window has focus, so the window always handles its own keys.
-  const b = store.project.buttons.find((x) => x.hotkey && normalise(x.hotkey) === combo);
+  // Project shortcuts keep their stored meaning (Ctrl is ⌃); only ⌘Z / ⌘⇧Z also act as the score's undo and redo.
+  const key = hotkeyCombo(raw);
+  const b = store.project.buttons.find((x) => x.hotkey && normalise(x.hotkey) === key);
   if (b) {
     e.preventDefault();
     if (e.repeat) return;
@@ -344,6 +357,16 @@ document.addEventListener("keydown", (e) => {
     document.querySelectorAll(`[data-button="${CSS.escape(b.id)}"]`).forEach((x) => { x.classList.remove("flash"); void x.offsetWidth; x.classList.add("flash"); });
   }
 });
+
+// ---- from the desktop shell (the Mac menu bar, Finder) ---------------------------------------
+// The shell calls these by name; each goes through the same code as the keys and buttons.
+window.__corbelAbout = () => about();
+window.__corbelOpen = (path) => openProject(path);   // asks "Save changes?" first, like File → Open
+window.__corbelUndo = (redo) => {
+  // Edit → Undo with the mouse: the same as pressing ⌘Z where the focus is.
+  if (typing(document.activeElement)) document.execCommand(redo ? "redo" : "undo");
+  else document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", metaKey: true, shiftKey: !!redo, bubbles: true, cancelable: true }));
+};
 
 // ---- buzzer -------------------------------------------------------------------------------
 on("expired", async (x) => {

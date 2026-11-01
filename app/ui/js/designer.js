@@ -9,6 +9,7 @@
 
 import { call, edit, fileUrl, on, store } from "./api.js";
 import { button, chip, clear, h, rerender } from "./dom.js";
+import { display, isMac } from "./keys.js";
 import { BoardView } from "/render/board-view.js";
 import { ELEMENT_DEFAULTS, align, canNest, distribute, makeElement, reorder } from "/core/board.js";
 import { ELEMENT_ACTIONS, FIELD_ACTIONS, NO_VALUE_OPS, OPS, compareValue } from "/core/logic.js";
@@ -527,8 +528,8 @@ export function mountDesigner(root) {
       ]), { disabled: !n, title: "Align, order and duplicate the selection" }),
       button("Delete", removeSelected, { role: "alert", disabled: !n, title: "Delete (Del)" }),
       h("span.sep"),
-      button("Undo", designUndo, { disabled: !st.canUndo, title: st.canUndo ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Nothing to undo" }),
-      button("Redo", designRedo, { disabled: !st.canRedo, title: st.canRedo ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Nothing to redo" }),
+      button("Undo", designUndo, { disabled: !st.canUndo, title: st.canUndo ? `Undo ${st.undoLabel} (${display("Ctrl+Z", { app: true })})` : "Nothing to undo" }),
+      button("Redo", designRedo, { disabled: !st.canRedo, title: st.canRedo ? `Redo ${st.redoLabel} (${display("Ctrl+Y", { app: true })})` : "Nothing to redo" }),
       h("span.spacer"),
       button("Show ▾", (e) => menu(e.currentTarget, [
         { label: `${showValues ? "☑" : "☐"} Live values`, run: () => { showValues = !showValues; applyValues(); } },
@@ -539,7 +540,7 @@ export function mountDesigner(root) {
         { cls: ui.split ? "on" : "", title: "Show your controls under the board, to change values while you design" }));
     toolbar.querySelector(".btn.on")?.setAttribute("aria-pressed", "true");
     clear(zoomBar);
-    zoomBar.append(button("−", () => setZoom((zoom?.s ?? view.scale) / 1.25), { cls: "btn-sm", title: "Zoom out (Ctrl+wheel)" }), zoomLabel,
+    zoomBar.append(button("−", () => setZoom((zoom?.s ?? view.scale) / 1.25), { cls: "btn-sm", title: `Zoom out (${isMac() ? "⌘-scroll" : "Ctrl+wheel"})` }), zoomLabel,
       button("+", () => setZoom((zoom?.s ?? view.scale) * 1.25), { cls: "btn-sm", title: "Zoom in" }),
       button("Fit", () => { zoom = null; applyZoom(); }, { cls: "btn-sm" }),
       button("100%", () => setZoom(1), { cls: "btn-sm" }));
@@ -568,7 +569,7 @@ export function mountDesigner(root) {
     const layers = [...(board?.elements ?? [])].reverse().map((e) => {
       const sel = ui.gsel.includes(e.id);
       return h(`div.item${sel ? ".sel" : ""}`, { tabindex: 0,
-        onclick: (ev) => { ui.gsel = ev.shiftKey || ev.ctrlKey ? (sel ? ui.gsel.filter((x) => x !== e.id) : [...ui.gsel, e.id]) : [e.id]; renderLeft(true); renderRight(); drawOverlay(); renderToolbar(); } },
+        onclick: (ev) => { ui.gsel = ev.shiftKey || ev.ctrlKey || ev.metaKey ? (sel ? ui.gsel.filter((x) => x !== e.id) : [...ui.gsel, e.id]) : [e.id]; renderLeft(true); renderRight(); drawOverlay(); renderToolbar(); } },
         h("span.typ", { style: { width: "58px", flex: "none" } }, KIND_NAME[e.kind] ?? e.kind),
         h("span.name", { title: e.text || e.src || "" }, e.name || e.text || e.kind),
         e.show_when ? h("span.typ", { title: `Shown while ${e.show_when} is on` }, "if") : null,
@@ -763,7 +764,7 @@ export function mountDesigner(root) {
         h("label", "Height"), numberInput(board.height, (v) => put({ height: v }, "Board size"), { k: "b-h", min: 16, max: 8192, suffix: "px" }),
         h("label", "Background"), colorInput(board.background, (v) => put({ background: v.trim() }), { k: "b-bg", placeholder: "transparent" })),
       h("p.hint", "Leave the background empty for a transparent graphic to key over video. Projector windows show it on black."),
-      h("p.hint", "Select an element to change it. Shift-click or drag across empty space to select several. Ctrl+wheel zooms; Alt-drag pans.")];
+      h("p.hint", `Select an element to change it. Shift-click or drag across empty space to select several. ${isMac() ? "⌘-scroll" : "Ctrl+wheel"} zooms; Alt-drag pans.`)];
   }
 
   function elementProps() {
